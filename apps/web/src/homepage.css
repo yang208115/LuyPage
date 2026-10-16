@@ -155,3 +155,37 @@
 .local-wallpaper-card .wallpaper-option svg { flex-shrink: 0; }
 .local-wallpaper-delete { width: 100%; margin-top: 5px; font-size: 11px; min-height: 36px; }
 .local-wallpaper-gallery .notice ul { padding-left: 18px; overflow-wrap: anywhere; }
+
+/* Account-owned homepage canvas; only handles capture pointer movement. */
+.homepage-grid { display: grid; grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr)); grid-auto-rows: 56px; gap: 16px; position: relative; }
+.homepage-grid.is-grid-editing { background-image: linear-gradient(to right, #ffffff16 1px, transparent 1px), linear-gradient(to bottom, #ffffff16 1px, transparent 1px); background-size: var(--grid-step-x) 72px; border-radius: 12px; }
+.homepage-grid-item { min-width: 0; min-height: 0; position: relative; border-radius: 20px; }
+.homepage-grid-item.is-dragging { z-index: 3; outline: 2px solid #f2cc82; }
+.homepage-grid-content { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.homepage-grid-content > .home-tile, .homepage-grid-content > .home-search { width: 100%; height: 100%; min-height: 0; margin: 0; }
+.homepage-grid-content > .home-favorites { height: 100%; margin: 0; padding: 8px; overflow: auto; scrollbar-width: thin; }
+.homepage-grid-content .home-shortcuts { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 24px 12px; }
+.homepage-grid-content .home-calendar { display: flex; flex-direction: column; justify-content: center; }
+.homepage-grid-content .home-calendar .calendar-grid { gap: 3px 0; }
+.homepage-grid.is-grid-editing .homepage-grid-item { outline: 1px dashed #fffd; }
+.homepage-grid.is-grid-editing .homepage-grid-content { opacity: .85; }
+.homepage-grid.is-grid-editing .tile-favorites .homepage-grid-content { padding-top: 28px; }
+.grid-drag-handle, .grid-resize-handle, .pin-drag-handle { touch-action: none; color: #fff; background: #142d34; border: 1px solid #ffffff80; padding: 5px 8px; min-height: 30px; }
+.grid-drag-handle { position: absolute; top: 0; left: 0; display: flex; gap: 4px; max-width: calc(100% - 28px); cursor: grab; z-index: 4; }
+.grid-drag-handle span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+.grid-resize-handle { position: absolute; right: 0; bottom: 0; width: 32px; padding: 5px; cursor: nwse-resize; z-index: 4; }
+.sortable-home-pin { min-width: 0; position: relative; }
+.pin-drag-handle { display: block; margin: 5px auto 0; cursor: grab; }
+.homepage-layout-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; position: sticky; top: 10px; z-index: 10; padding: 12px; margin: 0 0 24px; border: 1px solid #fff5; border-radius: 14px; background: #142d34f2; color: white; }
+.homepage-layout-toolbar button { color: white; background: #ffffff15; border: 1px solid #fff5; font-size: 12px; }
+.homepage-layout-toolbar p, .homepage-layout-toolbar .error-notice { flex-basis: 100%; }
+@media (max-width: 760px) {
+  .homepage-grid-content .home-clock-time { font-size: 42px; }
+  .homepage-grid-content .home-calendar { padding: 12px 3px; }
+  .homepage-grid-content .home-calendar .calendar-grid > span { width: auto; font-size: 9px; }
+  .homepage-grid-content .home-calendar .calendar-today { font-size: 9px; }
+  .homepage-layout-toolbar { top: 5px; gap: 8px; }
+  .homepage-grid-content .home-shortcuts { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
+}
+
+.homepage-layout-toolbar button:hover, .grid-drag-handle:hover, .grid-resize-handle:hover, .pin-drag-handle:hover { color: #fff; background: #35535b; border-color: #fff9; }

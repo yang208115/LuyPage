@@ -84,10 +84,11 @@ export async function listBookmarks(db: D1Database, ownerId: string, query: Book
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new AppError('VALIDATION_ERROR', '每页数量必须为 1–100。');
   const sort = query.sort ?? 'manual';
   if (!['manual', 'created', 'updated', 'title'].includes(sort)) throw new AppError('VALIDATION_ERROR', '排序方式无效。');
+  if (query.homepageDevice && (!['desktop', 'mobile'].includes(query.homepageDevice) || query.pinned !== true || sort !== 'manual' || trash)) throw new AppError('VALIDATION_ERROR', '主页排序仅适用于有效的常用收藏。');
   const words = searchKey(query.q ?? '').trim().split(/\s+/u).filter(Boolean);
   if (words.length > 50 || (query.q?.length ?? 0) > 2000 || (query.tagIds?.length ?? 0) > 20) throw new AppError('VALIDATION_ERROR', '筛选条件过长。');
   const tagIds = [...new Set(query.tagIds ?? [])].sort();
-  const fingerprint = JSON.stringify([ownerId, trash, words, query.groupId ?? null, tagIds, query.pinned ?? null, sort]);
+  const fingerprint = JSON.stringify([ownerId, trash, words, query.groupId ?? null, tagIds, query.pinned ?? null, sort, query.homepageDevice ?? null]);
   const cursor = query.cursor ? decodeCursor(query.cursor) : null;
   if (cursor && cursor.query !== fingerprint) throw new AppError('INVALID_CURSOR', '筛选条件已变化，请重新加载列表。', 422);
   const where = ['b.owner_id = ?', `b.deleted_at IS ${trash ? 'NOT ' : ''}NULL`];
@@ -106,8 +107,9 @@ export async function listBookmarks(db: D1Database, ownerId: string, query: Book
     args.push(JSON.stringify(words));
   }
   const pinnedOrder = sort === 'manual' && query.pinned === true;
-  const k1 = sort === 'manual' && !pinnedOrder ? '(b.group_id IS NULL)' : '0';
-  const k2 = pinnedOrder ? 'b.pinned_position' : sort === 'manual' ? 'coalesce(g.position, 0)' : sort === 'title' ? 'b.title_key' : sort === 'created' ? '-julianday(b.created_at)' : '-julianday(b.updated_at)';
+  const homeRank = query.homepageDevice ? `(SELECT CAST(p.key AS INTEGER) FROM workspace_state ws, json_each(ws.homepage_layout, '$.${query.homepageDevice}.pinnedOrder') p WHERE ws.owner_id = b.owner_id AND p.value = b.id)` : null;
+  const k1 = homeRank ? `(${homeRank} IS NULL)` : sort === 'manual' && !pinnedOrder ? '(b.group_id IS NULL)' : '0';
+  const k2 = homeRank ? `coalesce(${homeRank}, b.pinned_position)` : pinnedOrder ? 'b.pinned_position' : sort === 'manual' ? 'coalesce(g.position, 0)' : sort === 'title' ? 'b.title_key' : sort === 'created' ? '-julianday(b.created_at)' : '-julianday(b.updated_at)';
   const k3 = sort === 'manual' && !pinnedOrder ? 'b.position' : '0';
   const cte = `WITH filtered AS (SELECT ${bookmarkColumns}, -b.pinned AS k0, ${k1} AS k1, ${k2} AS k2, ${k3} AS k3
     FROM bookmarks b LEFT JOIN groups g ON g.owner_id = b.owner_id AND g.id = b.group_id WHERE ${where.join(' AND ')})`;

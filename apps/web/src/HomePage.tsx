@@ -9,6 +9,9 @@ import { calendarDays, externalSearchUrl, SEARCH_OPTIONS, WALLPAPERS } from './h
 import { useWallpaper } from './use-wallpaper';
 import './homepage.css';
 import { AutomaticIcon } from './AutomaticIcon';
+import { HomepageGrid, SortableHomepagePins, SortableHomepagePin } from './HomepageGrid';
+import { useHomepageLayout } from './use-homepage-layout';
+import { reorderLoadedPins } from '@luypage/domain';
 
 type HomeProps = {
   onLibrary: (groupId?: string, query?: string) => void;
@@ -79,7 +82,6 @@ function FolderDialog({ folder, onClose, onAdd, onLibrary }: { folder: HomepageF
 export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeProps) {
   const { session } = useSession();
   const homepage = useHomepage();
-  const pinned = useBookmarks({ pinned: true, sort: 'manual', limit: 20 });
   const [folderId, setFolderId] = useState<string | null | undefined>(undefined);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [draft, setDraft] = useState<HomepageDraft | null>(null);
@@ -92,12 +94,16 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
   const preferences = draft?.preferences ?? data?.preferences ?? DEFAULT_HOMEPAGE_PREFERENCES;
   const provider = providerOverride ?? preferences.searchProvider;
   const folders = (data?.folders ?? []).filter(folder => folder.id !== null || folder.count > 0);
+  const layout = useHomepageLayout(data, navigationGuard, !!draft);
+  const pinned = useBookmarks({ pinned: true, sort: 'manual', limit: 20, homepageDevice: layout.device });
   const activeFolder = folderId !== undefined ? folders.find(folder => folder.id === folderId) : undefined;
-  const shortcuts = [...new Map((pinned.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id, item])).values()];
+  const loadedShortcuts = [...new Map((pinned.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id, item])).values()];
+  const shortcutMap = new Map(loadedShortcuts.map(item => [item.id, item]));
+  const shortcuts = [...layout.profile.pinnedOrder.map(id => shortcutMap.get(id)).filter(item => item !== undefined), ...loadedShortcuts.filter(item => !layout.profile.pinnedOrder.includes(item.id))];
   useEffect(() => setProviderOverride(null), [preferences.searchProvider]);
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 4500); return () => window.clearTimeout(timer); }, [notice]);
   function openFolder(folder: HomepageFolder) { setMobileMenu(false); setFolderId(folder.id); }
-  function settings() { if (data) { setMobileMenu(false); setDraft({ baseRevision: data.revision, preferences: { ...data.preferences }, local: null }); } }
+  function settings() { if (layout.editing && !layout.finish()) return; if (data) { setMobileMenu(false); setDraft({ baseRevision: data.revision, preferences: { ...data.preferences }, local: null }); } }
   function submit(event: FormEvent) {
     event.preventDefault();
     const query = search.trim();
@@ -109,33 +115,44 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
     <button className="home-brand" aria-label="LuyPage 主页" onClick={() => { setMobileMenu(false); setFolderId(undefined); }}><Leaf size={25} strokeWidth={1.7} /><span>LuyPage</span></button>
     <nav aria-label="主页导航" className="home-primary-nav"><button className="home-nav-item active" aria-label="主页" aria-current="page" onClick={() => setMobileMenu(false)}><Home size={21} /><span>主页</span></button><button className="home-nav-item" aria-label="收藏管理" onClick={() => onLibrary()}><LayoutGrid size={21} /><span>收藏管理</span></button></nav>
     <div className="home-nav-separator" /><nav aria-label="主页分组" className="home-folder-nav">{folders.map(folder => <button key={folder.id ?? 'ungrouped'} className="home-nav-item" aria-label={`打开分组：${folder.name}`} title={folder.name} onClick={() => openFolder(folder)}><Folder size={19} /><span>{folder.name}</span></button>)}</nav>
-    <div className="home-rail-bottom"><button className="home-nav-item" aria-label="添加收藏" onClick={() => { setMobileMenu(false); onAdd(); }}><Plus size={22} /><span>添加收藏</span></button><button className="home-nav-item" aria-label="主页设置" disabled={!data} onClick={settings}><Settings2 size={20} /><span>主页设置</span></button><button className="home-avatar" aria-label="账号与设置" title={session.user.displayName} onClick={() => { setMobileMenu(false); onAccount(); }}><ShieldCheck size={19} /><span>{session.user.displayName}</span></button></div>
+    <div className="home-rail-bottom"><button className="home-nav-item" aria-label="编辑布局" disabled={!data || layout.editing} onClick={() => { setMobileMenu(false); layout.begin(); }}><LayoutGrid size={20} /><span>编辑布局</span></button><button className="home-nav-item" aria-label="添加收藏" onClick={() => { setMobileMenu(false); onAdd(); }}><Plus size={22} /><span>添加收藏</span></button><button className="home-nav-item" aria-label="主页设置" disabled={!data} onClick={settings}><Settings2 size={20} /><span>主页设置</span></button><button className="home-avatar" aria-label="账号与设置" title={session.user.displayName} onClick={() => { setMobileMenu(false); onAccount(); }}><ShieldCheck size={19} /><span>{session.user.displayName}</span></button></div>
   </>;
+  const contents = new Map<string, { label: string; node: React.ReactNode }>([
+    ['search', { label: '搜索框', node: (<form className="home-search" role="search" onSubmit={submit}>
+        <label className="home-search-provider"><Search size={20} /><select aria-label="搜索方式" value={provider} onChange={event => setProviderOverride(event.target.value as HomepagePreferences['searchProvider'])}>{SEARCH_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
+        <input type="search" aria-label="主页搜索" maxLength={2000} placeholder={provider === 'bookmarks' ? '在收藏里，找点喜欢的…' : '输入搜索内容，去看看更大的世界…'} value={search} onChange={event => setSearch(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }} />
+        <button type="submit" className="home-icon-button" aria-label="执行搜索" disabled={!search.trim()}><ArrowRight size={20} /></button>
+      </form>) }],
+    ['favorites', { label: '常用收藏', node: (<section className="home-favorites" aria-labelledby="home-favorites-title"><header><h1 id="home-favorites-title"><Star size={16} />常用收藏</h1><button disabled={layout.editing} onClick={() => onLibrary()}>整理我的收藏<ArrowUpRight size={14} /></button></header>
+        <ErrorNotice error={pinned.error} retry={() => void pinned.refetch()} />
+        {pinned.isPending ? <p className="home-pinned-status" role="status">正在加载常用收藏…</p> : <>
+          {!pinned.error && !shortcuts.length && <p className="home-pinned-status">{data?.counts.active ? '把喜欢的网站设为常用，下次从这里出发。' : '从第一个网站开始，收藏自己的小小世界。'}</p>}
+          <SortableHomepagePins ids={shortcuts.map(item => item.id)} disabled={!layout.editing || !!layout.error || layout.blocked} onMove={(active, over) => layout.change({ ...layout.profile, pinnedOrder: reorderLoadedPins(layout.profile.pinnedOrder, shortcuts.map(item => item.id), active, over) })}><div className="home-shortcuts">{shortcuts.map(bookmark => <SortableHomepagePin key={bookmark.id} id={bookmark.id} title={bookmark.title} editing={layout.editing} disabled={!!layout.error || layout.blocked}><Shortcut bookmark={bookmark} /></SortableHomepagePin>)}<button className="home-shortcut home-add-shortcut" disabled={layout.editing} onClick={() => onAdd()}><span className="home-site-icon"><Plus size={29} strokeWidth={1.5} /></span><span className="home-shortcut-name">添加收藏</span></button></div></SortableHomepagePins>
+        </>}
+        {pinned.hasNextPage && <button className="home-load-more" disabled={pinned.isFetching} onClick={() => void pinned.fetchNextPage()}><ArrowDown size={15} />{pinned.isFetching ? '正在加载…' : '更多常用收藏'}</button>}
+      </section>) }],
+  ]);
+  if (preferences.showClock) contents.set('clock', { label: '时钟', node: <ClockCard /> });
+  if (preferences.showCalendar) contents.set('calendar', { label: '日历', node: <CalendarCard /> });
+  for (const folder of folders) contents.set(folder.id === null ? 'ungrouped' : `folder:${folder.id}`, { label: folder.name, node: <FolderCard folder={folder} onOpen={() => openFolder(folder)} /> });
   const wallpaper = WALLPAPERS.find(item => item.id === preferences.wallpaperId)!;
   return <div className={`homepage wallpaper-${localWallpaper.url ? 'custom' : preferences.wallpaperId}`} style={{ '--home-wallpaper': `url("${localWallpaper.url ?? `/wallpapers/${preferences.wallpaperId}.webp`}")` } as CSSProperties}>
     <a href="#home-content" className="skip-link">跳转到主要内容</a>
     <aside className="home-rail">{navigation}</aside>
     <header className="home-mobile-header"><button className="home-icon-button" aria-label="打开主页导航" onClick={() => setMobileMenu(true)}><Menu size={22} /></button><span><Leaf size={17} />LuyPage</span><button className="home-icon-button" aria-label="打开主页设置" disabled={!data} onClick={settings}><Settings2 size={21} /></button></header>
     <main className="home-content" id="home-content">
-      <form className="home-search" role="search" onSubmit={submit}>
-        <label className="home-search-provider"><Search size={20} /><select aria-label="搜索方式" value={provider} onChange={event => setProviderOverride(event.target.value as HomepagePreferences['searchProvider'])}>{SEARCH_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-        <input type="search" aria-label="主页搜索" maxLength={2000} placeholder={provider === 'bookmarks' ? '在收藏里，找点喜欢的…' : '输入搜索内容，去看看更大的世界…'} value={search} onChange={event => setSearch(event.target.value)} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }} />
-        <button type="submit" className="home-icon-button" aria-label="执行搜索" disabled={!search.trim()}><ArrowRight size={20} /></button>
-      </form>
       <div className="home-notices"><SessionNotice /><ErrorNotice error={homepage.error} retry={() => void homepage.refetch()} /><ErrorNotice error={localWallpaper.error} retry={localWallpaper.reload} /></div>
-      <section className="home-dashboard" aria-label="我的主页组件">
-        {preferences.showClock && <ClockCard />}{preferences.showCalendar && <CalendarCard />}
-        {data && folders.map(folder => <FolderCard key={folder.id ?? 'ungrouped'} folder={folder} onOpen={() => openFolder(folder)} />)}
-        {homepage.isPending && <div className="home-tile home-loading" role="status">正在准备你的空间…</div>}
-      </section>
-      <section className="home-favorites" aria-labelledby="home-favorites-title"><header><h1 id="home-favorites-title"><Star size={16} />常用收藏</h1><button onClick={() => onLibrary()}>整理我的收藏<ArrowUpRight size={14} /></button></header>
-        <ErrorNotice error={pinned.error} retry={() => void pinned.refetch()} />
-        {pinned.isPending ? <p className="home-pinned-status" role="status">正在加载常用收藏…</p> : <>
-          {!pinned.error && !shortcuts.length && <p className="home-pinned-status">{data?.counts.active ? '把喜欢的网站设为常用，下次从这里出发。' : '从第一个网站开始，收藏自己的小小世界。'}</p>}
-          <div className="home-shortcuts">{shortcuts.map(bookmark => <Shortcut key={bookmark.id} bookmark={bookmark} />)}<button className="home-shortcut home-add-shortcut" onClick={() => onAdd()}><span className="home-site-icon"><Plus size={29} strokeWidth={1.5} /></span><span className="home-shortcut-name">添加收藏</span></button></div>
-        </>}
-        {pinned.hasNextPage && <button className="home-load-more" disabled={pinned.isFetching} onClick={() => void pinned.fetchNextPage()}><ArrowDown size={15} />{pinned.isFetching ? '正在加载…' : '更多常用收藏'}</button>}
-      </section>
+      {layout.editing && <div className="homepage-layout-toolbar" aria-label="主页布局编辑">
+        <strong>{layout.device === 'mobile' ? '手机布局' : '电脑布局'}</strong>
+        <span role="status">{layout.error ? '保存失败' : layout.saving || layout.dirty ? '保存中…' : '已保存'}</span>
+        <button disabled={!layout.canUndo} onClick={layout.undo}>撤销上一步</button>
+        <button disabled={!!layout.error || layout.blocked} onClick={layout.reset}>恢复默认布局</button>
+        <button disabled={layout.saving} onClick={layout.finish}>完成编辑</button>
+        {layout.blocked && <p>正在保存切换前的布局；保存成功后切换到当前屏幕布局。</p>}
+        <ErrorNotice error={layout.error} />
+        {layout.error && (layout.conflict ? <div className="button-row"><button disabled={layout.saving} onClick={() => void layout.resolveConflict(false)}>使用最新布局</button><button disabled={layout.saving} onClick={() => void layout.resolveConflict(true)}>将当前布局应用到最新版本</button></div> : <button disabled={layout.saving} onClick={layout.retry}>重试保存</button>)}
+      </div>}
+      {homepage.isPending ? <div className="home-tile home-loading" role="status">正在准备你的空间…</div> : <HomepageGrid device={layout.device} profile={layout.profile} editing={layout.editing} disabled={!!layout.error || layout.blocked} contents={contents} onChange={layout.change} />}
       <footer className="home-footer"><span><Leaf size={13} />{localWallpaper.url ? '属于你的风景' : wallpaper.caption}</span><span><ShieldCheck size={12} />你的私有空间</span></footer>
     </main>
     {mobileMenu && <Modal title="你的空间" onClose={() => setMobileMenu(false)} className="home-mobile-menu"><div className="home-mobile-nav">{navigation}</div></Modal>}

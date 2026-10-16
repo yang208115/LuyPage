@@ -1,3 +1,4 @@
+import type { HomepageLayout, HomepageDevice } from './homepage-layout';
 export type Id = string;
 export interface Session { user: { id: Id; displayName: string }; local: boolean; loginUrl: string; logoutUrl: string }
 export interface IconChoice { type: 'auto' | 'builtin'; key: string | null }
@@ -15,7 +16,7 @@ export const DEFAULT_HOMEPAGE_PREFERENCES: HomepagePreferences = {
 export interface HomepageShortcut { id: Id; title: string; url: string; icon: IconChoice }
 export interface HomepageFolder { id: Id | null; name: string; count: number; preview: HomepageShortcut[] }
 export interface Homepage {
-  revision: number; preferences: HomepagePreferences; counts: { active: number; pinned: number }; folders: HomepageFolder[];
+  revision: number; layout: HomepageLayout; pinnedIds: Id[]; preferences: HomepagePreferences; counts: { active: number; pinned: number }; folders: HomepageFolder[];
 }
 export interface HomepageSaveInput { operationId: Id; baseRevision: number; preferences: HomepagePreferences }
 export interface Bookmark {
@@ -44,7 +45,7 @@ export interface UpdateBookmarkInput extends CreateBookmarkInput { version: numb
 export interface VersionInput { operationId: Id; version: number }
 export interface NameInput { operationId: Id; name: string; version?: number }
 export type Sort = 'manual' | 'created' | 'updated' | 'title';
-export interface BookmarkQuery { q?: string; groupId?: string; tagIds?: string[]; pinned?: boolean; sort?: Sort; cursor?: string; limit?: number }
+export interface BookmarkQuery { homepageDevice?: HomepageDevice; q?: string; groupId?: string; tagIds?: string[]; pinned?: boolean; sort?: Sort; cursor?: string; limit?: number }
 export interface BookmarkPage { items: Bookmark[]; total: number; nextCursor: string | null; revision: number }
 export interface Bootstrap {
   revision: number; groups: Group[]; tags: Tag[]; preferences: LayoutPreferences;

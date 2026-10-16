@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
-import { DEFAULT_PREFERENCES, DEFAULT_HOMEPAGE_PREFERENCES, type LayoutPreferences, type HomepagePreferences } from '@luypage/contracts';
+import { DEFAULT_PREFERENCES, DEFAULT_HOMEPAGE_PREFERENCES, DEFAULT_HOMEPAGE_LAYOUT, type HomepageLayout, type LayoutPreferences, type HomepagePreferences } from '@luypage/contracts';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(), createdAt: text('created_at').notNull(),
@@ -14,8 +14,9 @@ export const workspaceState = sqliteTable('workspace_state', {
   ownerId: text('owner_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   dataRevision: integer('data_revision').notNull().default(0),
   preferences: text('preferences', { mode: 'json' }).$type<LayoutPreferences>().notNull().default(DEFAULT_PREFERENCES),
+  homepageLayout: text('homepage_layout', { mode: 'json' }).$type<HomepageLayout>().notNull().default(DEFAULT_HOMEPAGE_LAYOUT),
   homepagePreferences: text('homepage_preferences', { mode: 'json' }).$type<HomepagePreferences>().notNull().default(DEFAULT_HOMEPAGE_PREFERENCES),
-}, t => [check('revision_nonnegative', sql`${t.dataRevision} >= 0`), check('preferences_json', sql`json_valid(${t.preferences})`), check('homepage_preferences_json', sql`json_valid(${t.homepagePreferences})`)]);
+}, t => [check('revision_nonnegative', sql`${t.dataRevision} >= 0`), check('preferences_json', sql`json_valid(${t.preferences})`), check('homepage_layout_json', sql`json_valid(${t.homepageLayout})`), check('homepage_preferences_json', sql`json_valid(${t.homepagePreferences})`)]);
 export const groups = sqliteTable('groups', {
   ownerId: text('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   id: text('id').notNull(), name: text('name').notNull(), nameKey: text('name_key').notNull(),

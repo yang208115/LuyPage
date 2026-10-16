@@ -222,11 +222,11 @@ test('空分组、无常用与长标题仍可操作，过期会话提供恢复�
   await expect(page.getByRole('link', { name: '新窗口重新认证' })).toHaveCount(0);
 });
 
-test('常用收藏沿用顺序并分页加载', async ({ page, request }) => {
+test('常用收藏按当前设备的首页顺序分页加载', async ({ page, request, isMobile }) => {
   const created: { id: string; version: number }[] = [];
   try {
     for (let index = 0; index < 21; index++) created.push(await add(request, `常用分页 ${index}`, null, true));
-    const expected = await (await request.get('/api/bookmarks?pinned=true&sort=manual&limit=100')).json();
+    const expected = await (await request.get(`/api/bookmarks?pinned=true&sort=manual&limit=100&homepageDevice=${isMobile ? 'mobile' : 'desktop'}`)).json();
     await page.goto('/');
     const shortcuts = page.locator('.home-shortcuts').getByRole('link');
     await expect(shortcuts).toHaveCount(20);

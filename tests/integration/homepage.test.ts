@@ -1,7 +1,8 @@
+import { defaultHomepageProfile, placeHomepageTile } from '@luypage/domain';
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { createMiddleware } from 'hono/factory';
-import { DEFAULT_HOMEPAGE_PREFERENCES, type Bookmark, type Homepage, type HomepagePreferences, type LayoutIndex, type MutationResult } from '@luypage/contracts';
+import { DEFAULT_HOMEPAGE_PREFERENCES, type Bookmark, type Homepage, type HomepagePreferences, type LayoutIndex, type MutationResult, type HomepageLayout, type BookmarkPage } from '@luypage/contracts';
 import { ensureIdentity } from '@luypage/persistence';
 import { createApp } from '../../apps/api/src/app';
 import type { AppEnv } from '../../apps/api/src/context';
@@ -83,6 +84,45 @@ describe('homepage D1 API', () => {
     const user = await owner();
     const response = await app.fetch(new Request('http://localhost/api/homepage/preferences', { method: 'PUT', headers: { 'X-Test-Owner': user, Origin: 'https://evil.test', 'Content-Type': 'application/json' }, body: JSON.stringify(saveInput(0)) }), env);
     expect(response.status).toBe(403);
+    expect((await json<Homepage>(user, '/homepage')).revision).toBe(0);
+  });
+});
+
+
+describe('homepage layout persistence', () => {
+  it('saves separate device profiles, replays receipts and preserves the library layout', async () => {
+    const user = await owner();
+    const a = await add(user, null, 0); const b = await add(user, null, 2);
+    const before = await json<LayoutIndex>(user, '/layout/index');
+    const profile = defaultHomepageProfile('desktop', ['ungrouped'], [b.id, a.id]);
+    const body = { operationId: crypto.randomUUID(), baseRevision: before.revision, device: 'desktop', profile };
+    const saved = await json<MutationResult<HomepageLayout>>(user, '/homepage/layout', 'PUT', body);
+    expect(saved.data.desktop).toEqual(profile); expect(saved.data.mobile).toBeNull();
+    expect(await json(user, '/homepage/layout', 'PUT', body)).toEqual(saved);
+    expect((await request(user, '/homepage/layout', 'PUT', { ...body, operationId: crypto.randomUUID() })).status).toBe(409);
+    const mobile = defaultHomepageProfile('mobile', ['ungrouped'], [a.id, b.id]);
+    await json(user, '/homepage/layout', 'PUT', { ...body, operationId: crypto.randomUUID(), baseRevision: saved.revision, device: 'mobile', profile: mobile });
+    const home = await json<Homepage>(user, '/homepage');
+    expect(home.layout).toEqual({ version: 1, desktop: profile, mobile });
+    const after = await json<LayoutIndex>(user, '/layout/index');
+    expect({ ...after, revision: before.revision }).toEqual(before);
+    expect(await json(user, `/bookmarks/${a.id}`)).toEqual(a);
+    const first = await json<BookmarkPage>(user, '/bookmarks?pinned=true&homepageDevice=desktop&limit=1');
+    expect(first.items.map(item => item.id)).toEqual([b.id]);
+    const second = await json<BookmarkPage>(user, `/bookmarks?pinned=true&homepageDevice=desktop&limit=1&cursor=${encodeURIComponent(first.nextCursor!)}`);
+    expect(second.items.map(item => item.id)).toEqual([a.id]);
+    expect((await json<BookmarkPage>(user, '/bookmarks?pinned=true&homepageDevice=mobile')).items.map(item => item.id)).toEqual([a.id, b.id]);
+    expect((await json<BookmarkPage>(user, '/bookmarks?pinned=true')).items.map(item => item.id)).toEqual([a.id, b.id]);
+    expect((await json<Homepage>(await owner(), '/homepage')).layout).toEqual({ version: 1, desktop: null, mobile: null });
+  });
+  it('rejects foreign references, overlapping tiles, missing widgets and invalid profiles without mutation', async () => {
+    const user = await owner(); const other = await owner(); const foreign = await add(other, null, 0);
+    const profile = defaultHomepageProfile('desktop', [], []);
+    const save = (next: typeof profile) => request(user, '/homepage/layout', 'PUT', { operationId: crypto.randomUUID(), baseRevision: 0, device: 'desktop', profile: next });
+    expect((await save({ ...profile, pinnedOrder: [foreign.id] })).status).toBe(409);
+    expect((await save({ ...profile, items: [...profile.items, { id: 'folder:foreign', x: 0, y: 50, w: 3, h: 3 }] })).status).toBe(409);
+    expect((await save({ ...profile, items: profile.items.map(item => ({ ...item, x: 0, y: 0 })) })).status).toBe(422);
+    expect((await save({ ...profile, items: profile.items.slice(1) })).status).toBe(422);
     expect((await json<Homepage>(user, '/homepage')).revision).toBe(0);
   });
 });

@@ -16,6 +16,8 @@ it('upgrades an existing database without changing its bookmarks, groups or layo
     const groups = db.prepare('SELECT * FROM groups').all();
     const bookmarks = db.prepare('SELECT * FROM bookmarks').all();
     db.exec(readFileSync('packages/persistence/migrations/0003_homepage.sql', 'utf8'));
+    db.exec(readFileSync('packages/persistence/migrations/0004_homepage_layout.sql', 'utf8'));
+    expect(JSON.parse(db.prepare('SELECT homepage_layout FROM workspace_state').get()!.homepage_layout as string)).toEqual({ version: 1, desktop: null, mobile: null });
     expect(db.prepare('SELECT owner_id, data_revision, preferences FROM workspace_state').all()).toEqual(layout);
     expect(db.prepare('SELECT * FROM groups').all()).toEqual(groups);
     expect(db.prepare('SELECT * FROM bookmarks').all()).toEqual(bookmarks);

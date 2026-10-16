@@ -36,6 +36,7 @@ export function useBookmarks(filters: BookmarkQuery, trash = false, enabled = tr
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam, signal }) => {
       const params = new URLSearchParams();
+      if (filters.homepageDevice) params.set('homepageDevice', filters.homepageDevice);
       if (filters.q) params.set('q', filters.q);
       if (filters.groupId) params.set('groupId', filters.groupId);
       if (filters.tagIds?.length) params.set('tagIds', filters.tagIds.join(','));

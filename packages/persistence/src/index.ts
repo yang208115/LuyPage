@@ -6,3 +6,4 @@ export { saveCollection, deleteCollection, collectionImpact } from './collection
 export { saveLayout, getDefaultLayoutIndex } from './layout';
 export { getHomepage, saveHomepagePreferences } from './homepage';
 export { importBookmarks, exportBookmarks } from './transfers';
+export { saveHomepageLayout } from './homepage-layout';

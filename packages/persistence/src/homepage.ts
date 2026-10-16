@@ -1,4 +1,4 @@
-import { homepagePreferencesSchema, type Homepage, type HomepagePreferences, type HomepageSaveInput, type HomepageShortcut, type MutationResult } from '@luypage/contracts';
+import { homepagePreferencesSchema, homepageLayoutSchema, type Homepage, type HomepagePreferences, type HomepageSaveInput, type HomepageShortcut, type MutationResult } from '@luypage/contracts';
 import { missing, mutate, statement } from './database';
 import { groupsQuery, type GroupRow } from './queries';
 
@@ -9,7 +9,7 @@ interface PreviewRow {
 export async function getHomepage(db: D1Database, ownerId: string): Promise<Homepage> {
   // One snapshot and a bounded projection: no per-folder queries or private notes.
   const results = await db.batch([
-    statement(db, 'SELECT data_revision, homepage_preferences FROM workspace_state WHERE owner_id = ?', ownerId),
+    statement(db, 'SELECT data_revision, homepage_preferences, homepage_layout FROM workspace_state WHERE owner_id = ?', ownerId),
     statement(db, groupsQuery, ownerId),
     statement(db, `SELECT count(*) AS active, count(CASE WHEN pinned = 1 THEN 1 END) AS pinned,
       count(CASE WHEN group_id IS NULL THEN 1 END) AS ungrouped
@@ -19,8 +19,9 @@ export async function getHomepage(db: D1Database, ownerId: string): Promise<Home
         row_number() OVER (PARTITION BY group_id ORDER BY position, id) AS slot
       FROM bookmarks WHERE owner_id = ? AND deleted_at IS NULL
     ) WHERE slot <= 4 ORDER BY group_id, slot`, ownerId),
+    statement(db, 'SELECT id FROM bookmarks WHERE owner_id = ? AND pinned = 1 AND deleted_at IS NULL ORDER BY pinned_position, id', ownerId),
   ]);
-  const state = results[0]!.results[0] as { data_revision: number; homepage_preferences: string } | undefined;
+  const state = results[0]!.results[0] as { data_revision: number; homepage_preferences: string; homepage_layout: string } | undefined;
   if (!state) throw missing();
   const groups = results[1]!.results as unknown as GroupRow[];
   const counts = results[2]!.results[0] as { active: number; pinned: number; ungrouped: number };
@@ -31,6 +32,8 @@ export async function getHomepage(db: D1Database, ownerId: string): Promise<Home
     previews.set(row.group_id, items);
   }
   return {
+    layout: homepageLayoutSchema.parse(JSON.parse(state.homepage_layout)),
+    pinnedIds: results[4]!.results.map(row => (row as { id: string }).id),
     revision: state.data_revision, preferences: homepagePreferencesSchema.parse(JSON.parse(state.homepage_preferences)),
     counts: { active: counts.active, pinned: counts.pinned },
     folders: [...groups.map(group => ({ id: group.id, name: group.name, count: group.count, preview: previews.get(group.id) ?? [] })),
