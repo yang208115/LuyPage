@@ -2,10 +2,11 @@ import { Hono, type MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { secureHeaders } from 'hono/secure-headers';
 import { ZodError } from 'zod';
-import { AppError, type Session } from '@luypage/contracts';
+import { AppError, MAX_TRANSFER_BYTES, type Session } from '@luypage/contracts';
 import type { AppEnv } from './context';
 import { registerRoutes } from './routes';
 import { registerTransferRoutes } from './transfers';
+import { registerIconRoutes } from './icons';
 
 export function createApp(auth: MiddlewareHandler<AppEnv>) {
   const app = new Hono<AppEnv>();
@@ -17,7 +18,7 @@ export function createApp(auth: MiddlewareHandler<AppEnv>) {
     await next();
   });
   app.use('/api/*', auth);
-  app.use('/api/*', bodyLimit({ maxSize: 1_048_576, onError: () => { throw new AppError('PAYLOAD_TOO_LARGE', '请求超过大小限制，请减少本次操作数量。', 413); } }));
+  app.use('/api/*', (c, next) => bodyLimit({ maxSize: c.req.path === '/api/imports' ? MAX_TRANSFER_BYTES + 1024 : 1_048_576, onError: () => { throw new AppError('PAYLOAD_TOO_LARGE', '请求超过大小限制，请减少本次操作数量。', 413); } })(c, next));
   app.use('/api/*', async (c, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
       if (!c.env.APP_ORIGIN || c.req.header('Origin') !== c.env.APP_ORIGIN) throw new AppError('ORIGIN_FORBIDDEN', '请求来源不受信任，请从应用页面重试。', 403);
@@ -28,6 +29,7 @@ export function createApp(auth: MiddlewareHandler<AppEnv>) {
   });
   app.get('/api/session', c => c.json({ user: { id: c.get('ownerId'), displayName: c.get('displayName') }, local: c.get('isLocal'), loginUrl: '/', logoutUrl: c.get('isLocal') ? '/' : '/cdn-cgi/access/logout' } satisfies Session));
   registerRoutes(app);
+  registerIconRoutes(app);
   registerTransferRoutes(app);
   app.notFound(c => c.json({ error: { code: 'NOT_FOUND', message: '请求的资源不存在。', requestId: c.get('requestId') ?? crypto.randomUUID() } }, 404));
   app.onError((error, c) => {

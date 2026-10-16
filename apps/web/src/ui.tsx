@@ -3,6 +3,7 @@ import { AlertCircle, ArrowUpRight, Bookmark, BookOpen, Code2, Compass, Folder, 
 import type { Bookmark as BookmarkData } from '@luypage/contracts';
 import { ApiError } from './api';
 import { SessionNotice } from './session';
+import { AutomaticIcon } from './AutomaticIcon';
 
 export const BUILTIN_ICONS: { key: string; label: string; icon: LucideIcon }[] = [
   { key: 'globe', label: '网站', icon: Globe2 }, { key: 'code', label: '开发', icon: Code2 },
@@ -26,7 +27,7 @@ export function BookmarkIcon({ bookmark }: { bookmark: BookmarkData }) {
   const hostname = domainOf(bookmark.url);
   const tone = [...hostname].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 5;
   return <span className={`site-icon tone-${tone}`} aria-hidden="true">
-    {bookmark.icon.type === 'builtin' && Glyph ? <Glyph size={25} strokeWidth={1.8} /> : <span>{hostname.charAt(0).toUpperCase() || '↗'}</span>}
+    <AutomaticIcon bookmark={bookmark}>{bookmark.icon.type === 'builtin' && Glyph ? <Glyph size={25} strokeWidth={1.8} /> : <span>{hostname.charAt(0).toUpperCase() || '↗'}</span>}</AutomaticIcon>
   </span>;
 }
 

@@ -37,7 +37,7 @@ export async function getBootstrap(db: D1Database, ownerId: string): Promise<Boo
   const state = results[0]!.results[0] as unknown as State;
   return { revision: state.data_revision, preferences: preferencesOf(state),
     groups: (results[1]!.results as unknown as GroupRow[]).map(groupDto), tags: (results[2]!.results as unknown as TagRow[]).map(tagDto),
-    counts: results[3]!.results[0] as unknown as Bootstrap['counts'], capabilities: { transfers: false, automaticIcons: false } };
+    counts: results[3]!.results[0] as unknown as Bootstrap['counts'], capabilities: { transfers: true, automaticIcons: true } };
 }
 
 export interface LayoutBookmark { id: string; group_id: string | null; position: number; pinned: number; pinned_position: number; created_at: string; version: number }

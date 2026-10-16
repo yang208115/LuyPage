@@ -1,6 +1,6 @@
 # 后台与存储安全框架
 
-本轮实现核心框架与安全失败路径，需求仍以 ARCHITECTURE 第 9–14 章和 PRD P0 为准。**512 MiB JSON 导入/导出全管线尚未完成，也未完成容量、真实云资源、跨设备或恢复验收。** 当前 API 全部导入/导出路由明确返回 `503 CAPABILITY_UNAVAILABLE`，不创建任务、不返回虚假 `202`。身份认证、同源校验及 requestId 由 API 主入口负责。
+本轮实现核心框架与安全失败路径，需求仍以 ARCHITECTURE 第 9–14 章和 PRD P0 为准。**512 MiB JSON 导入/导出全管线尚未完成，也未完成容量、真实云资源、跨设备或恢复验收。** 2026-10-16 起，设置已接入独立的同步迁移接口 `POST /api/imports` 与 `GET /api/exports`（5000 条、10 MiB），详见 [功能说明](TRANSFERS.md)。本文的分片上传、队列任务及其子资源仍返回 `503 CAPABILITY_UNAVAILABLE`，不创建任务、不返回虚假 `202`。身份认证、同源校验及 requestId 由 API 主入口负责。
 
 ## 已实现与接入
 
@@ -13,9 +13,9 @@
 | `apps/jobs/src/background.ts` | outbox 有界补发、有限重试、投递/租约超时处理、Queue/DLQ 的持久化失败路径 |
 | `apps/jobs/src/index.ts` | Queue/Scheduled 入口；HTTP 明确不可用 |
 | `apps/icon-fetcher/src/index.ts` | `503` + `fallback: builtin`；保留调用方本地图标，不读取 URL、不请求公网 |
-| `apps/api/src/transfers.ts` | `registerTransferRoutes(app: Hono<AppEnv>)`；两个接口族的所有方法及子资源均 `503` |
+| `apps/api/src/transfers.ts` | `registerTransferRoutes(app: Hono<AppEnv>)`；同步收藏迁移已接入；未实现的后台任务方法及子资源继续 `503` |
 
-jobs 和 icon-fetcher 的独立 `wrangler.jsonc` 均关闭 workers.dev 和预览 URL，无公开 route；jobs 的 cron 默认空。jobs 配置的 D1 ID、R2、Queue/DLQ 名称只用于本地模拟。图标 Worker 不携带业务 D1、私网绑定、图标桶或其他当前不需要的权限。本轮未创建云资源、未部署、未执行远程 Wrangler 命令。
+jobs 和 icon-fetcher 的独立 `wrangler.jsonc` 均关闭 workers.dev 和预览 URL，无公开 route；jobs 的 cron 默认空。jobs 配置的 D1 ID、R2、Queue/DLQ 名称只用于本地模拟。图标 Worker 不携带业务 D1、私网绑定、图标桶或其他当前不需要的权限。设置中的自动图标现由 `apps/api/src/icons.ts` 提供固定 DuckDuckGo 目标的代理，仅返回有界 PNG/ICO，不经过该后台 Worker，也不直接抓取收藏网址。本轮未创建云资源、未部署、未执行远程 Wrangler 命令。
 
 各入口的绑定类型由自己的 Wrangler 配置生成；公共运行时类型位于 `types/runtime.d.ts`。执行 `pnpm cf:types` 可统一重新生成，也可仅生成后台绑定：
 

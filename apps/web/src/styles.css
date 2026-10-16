@@ -192,3 +192,7 @@ summary::-webkit-details-marker { display: none; }
 .move-group-label, .layout-toolbar > p, .layout-preferences label, .confirm-copy { color: #607153; }
 .count-pill, .status-tag { color: #5c7447; }
 .card-domain { font-size: 10px; }
+
+.automatic-site-icon { width: 65%; height: 65%; object-fit: contain; }
+.transfer-preview { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; overflow-wrap: anywhere; }
+.transfer-preview ul { padding-left: 20px; max-height: 120px; overflow: auto; }

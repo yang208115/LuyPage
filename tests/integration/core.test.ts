@@ -66,7 +66,7 @@ describe('real D1 core', () => {
     const bootstrap = await json<Bootstrap>(user, '/bootstrap');
     expect(bootstrap.counts.active).toBe(2);
     expect(bootstrap.revision).toBe(2);
-    expect(bootstrap.capabilities).toEqual({ transfers: false, automaticIcons: false });
+    expect(bootstrap.capabilities).toEqual({ transfers: true, automaticIcons: true });
   });
 
   it('isolates objects and enforces owner composite FKs and URL uniqueness in D1', async () => {

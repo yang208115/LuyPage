@@ -42,8 +42,8 @@ describe('authentication and request boundary', () => {
     expect(missing.status).toBe(404);
     expect(missing.headers.get('content-type')).toContain('application/json');
     const unavailable = await app.request('http://localhost/api/imports', { method: 'POST', headers: { Origin: env.APP_ORIGIN, 'Content-Type': 'application/json' }, body: '{}' }, env);
-    expect(unavailable.status).toBe(503);
-    expect(await unavailable.json()).toMatchObject({ error: { code: 'CAPABILITY_UNAVAILABLE' } });
+    expect(unavailable.status).toBe(422);
+    expect(await unavailable.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 });
 

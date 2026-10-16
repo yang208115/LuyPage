@@ -61,7 +61,7 @@ pnpm run deploy
 
 日常 `pnpm dev` 和 `pnpm db:migrate` 仍只操作本地数据。发布命令不会创建或修改 Access 策略；新增域名须先配置相应保护。
 
-导入导出完整管线、512 MiB 极限往返、自动图标连接目标约束、真实跨设备、手机实机及备份恢复仍需完成对应验收。当前关闭的能力返回明确 503，不会返回假的任务成功。数据库独立备份必须覆盖回收站和任务，用户 JSON 导出不能替代数据库备份。
+设置中已支持 HTML / JSON 收藏迁移（单次 5000 条、10 MiB）与自动网站图标。迁移只新增有效收藏，同名分组/标签合并，重复网址（含回收站）跳过；JSON 保留分组、标签、备注、置顶、图标选择和时间，不包含回收站或页面布局。HTML 支持浏览器书签文件，嵌套目录按路径合并为分组（最多 40 字）。导入先预览，确认后原子提交；失败可重试。自动图标默认关闭，开启后服务端只向 DuckDuckGo 发送域名，失败回退到默认图标。详见 [功能说明](docs/TRANSFERS.md)。512 MiB 后台任务管线、真实跨设备、手机实机及备份恢复仍需完成对应验收；未实现的后台子资源继续返回明确 503。数据库独立备份必须覆盖回收站和任务，用户 JSON 导出不能替代数据库备份。
 
 D1 关键写入依据 [官方 batch 事务语义](https://developers.cloudflare.com/d1/worker-api/d1-database/)实现；Workers 测试依据 [官方 Vitest 插件文档](https://developers.cloudflare.com/workers/testing/vitest-integration/write-your-first-test/)。
 

@@ -93,9 +93,9 @@ export function BookmarkEditor({ bookmark, latest, groupId = null, groups, tags,
           <div className="inline-create"><input aria-label="新标签名称" placeholder="新标签名称" value={newTag} onChange={event => setNewTag(event.target.value)} /><button type="button" disabled={!newTag.trim()} onClick={() => void createTag()}><Plus size={15} />创建标签</button></div>
         </div>
         <div className="field"><span>卡片图标</span><div className="icon-choices">
-          <button type="button" className={input.icon.type === 'auto' ? 'selected' : ''} aria-pressed={input.icon.type === 'auto'} onClick={() => update('icon', { type: 'auto', key: null })}>Aa<span>域名首字母</span></button>
+          <button type="button" className={input.icon.type === 'auto' ? 'selected' : ''} aria-pressed={input.icon.type === 'auto'} onClick={() => update('icon', { type: 'auto', key: null })}>Aa<span>自动图标</span></button>
           {BUILTIN_ICONS.map(({ key, label, icon: Icon }) => <button type="button" key={key} className={input.icon.type === 'builtin' && input.icon.key === key ? 'selected' : ''} aria-label={`${label}图标`} aria-pressed={input.icon.type === 'builtin' && input.icon.key === key} onClick={() => update('icon', { type: 'builtin', key })}><Icon size={20} /><span>{label}</span></button>)}
-        </div><small>自动获取网站图标暂不可用。当前使用域名首字母或你选择的内置图标。</small></div>
+        </div><small>在设置中开启自动网站图标后生效；关闭或获取失败时使用默认图标。</small></div>
       </fieldset>
       <ErrorNotice error={validation || command.error || tagCommand.error} />
       {conflict && <div className="conflict-tools">

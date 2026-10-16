@@ -5,3 +5,4 @@ export { createBookmark, updateBookmark, changeBookmarkState, batchBookmarks } f
 export { saveCollection, deleteCollection, collectionImpact } from './collections';
 export { saveLayout, getDefaultLayoutIndex } from './layout';
 export { getHomepage, saveHomepagePreferences } from './homepage';
+export { importBookmarks, exportBookmarks } from './transfers';

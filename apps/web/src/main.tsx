@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from './api';
 import { SessionBoundary } from './session';
+import { AutomaticIconsProvider } from './AutomaticIcon';
 import { App } from './App';
 import './styles.css';
 
@@ -12,4 +13,4 @@ const queryClient = new QueryClient({ defaultOptions: { queries: {
 }, mutations: { retry: false } } });
 const root = document.getElementById('root');
 if (!root) throw new Error('缺少应用挂载节点 #root');
-createRoot(root).render(<StrictMode><QueryClientProvider client={queryClient}><SessionBoundary><App /></SessionBoundary></QueryClientProvider></StrictMode>);
+createRoot(root).render(<StrictMode><QueryClientProvider client={queryClient}><SessionBoundary><AutomaticIconsProvider><App /></AutomaticIconsProvider></SessionBoundary></QueryClientProvider></StrictMode>);

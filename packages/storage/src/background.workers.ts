@@ -215,12 +215,13 @@ describe('R2 and disabled capability boundaries', () => {
     await expect(putImmutableChunk(env.FILES, identity, body(), expected)).rejects.toThrow('OBJECT_DIGEST_MISMATCH');
     expect(new Uint8Array(await (await env.FILES.get(key))!.arrayBuffer())).toEqual(new Uint8Array(data.length));
   });
-  it('returns explicit 503 for every transfer family method/subresource', async () => {
+  it('keeps unimplemented background transfer methods and subresources closed', async () => {
     const app = new Hono<AppEnv>();
     app.use('*', async (context, next) => { context.set('requestId', 'request'); await next(); });
     registerTransferRoutes(app);
     for (const path of ['/api/imports', '/api/imports/job/chunks/0', '/api/imports/job/confirm', '/api/exports', '/api/exports/job/download']) {
       for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']) {
+        if ((path === '/api/imports' && method === 'POST') || (path === '/api/exports' && ['GET', 'HEAD'].includes(method))) continue;
         const response = await app.request(path, { method });
         expect(response.status).toBe(503);
         if (method !== 'HEAD') expect(await response.json()).toMatchObject({ error: { code: 'CAPABILITY_UNAVAILABLE', requestId: 'request' } });

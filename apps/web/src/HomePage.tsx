@@ -8,6 +8,7 @@ import { HomepageSettings, type HomepageDraft } from './HomepageSettings';
 import { calendarDays, externalSearchUrl, SEARCH_OPTIONS, WALLPAPERS } from './homepage-model';
 import { useWallpaper } from './use-wallpaper';
 import './homepage.css';
+import { AutomaticIcon } from './AutomaticIcon';
 
 type HomeProps = {
   onLibrary: (groupId?: string, query?: string) => void;
@@ -51,7 +52,7 @@ function ShortcutIcon({ bookmark }: { bookmark: HomepageShortcut }) {
   let hostname = bookmark.url;
   try { hostname = new URL(bookmark.url).hostname; } catch { /* Invalid links are inert. */ }
   const tone = [...hostname].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 7;
-  return <span className={`home-site-icon home-tone-${tone}`}><Icon aria-hidden="true" size={29} strokeWidth={1.8} /></span>;
+  return <span className={`home-site-icon home-tone-${tone}`}><AutomaticIcon bookmark={bookmark}><Icon aria-hidden="true" size={29} strokeWidth={1.8} /></AutomaticIcon></span>;
 }
 function Shortcut({ bookmark }: { bookmark: HomepageShortcut }) {
   const href = safeWebsite(bookmark.url);
