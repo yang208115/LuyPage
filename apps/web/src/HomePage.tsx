@@ -91,7 +91,7 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
   const data = homepage.data;
   const preferences = draft?.preferences ?? data?.preferences ?? DEFAULT_HOMEPAGE_PREFERENCES;
   const provider = providerOverride ?? preferences.searchProvider;
-  const folders = data?.folders ?? [];
+  const folders = (data?.folders ?? []).filter(folder => folder.id !== null || folder.count > 0);
   const activeFolder = folderId !== undefined ? folders.find(folder => folder.id === folderId) : undefined;
   const shortcuts = [...new Map((pinned.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id, item])).values()];
   useEffect(() => setProviderOverride(null), [preferences.searchProvider]);
