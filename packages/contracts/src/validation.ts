@@ -1,3 +1,4 @@
+import { tileAppearanceSchema } from './tile-appearance';
 import { caseFold } from 'unicode-case-folding';
 import { z } from 'zod';
 import { AppError } from './errors';
@@ -153,11 +154,12 @@ export const homepagePreferencesSchema = z.strictObject({
   searchProvider: z.enum(SEARCH_PROVIDERS),
   showClock: z.boolean(),
   showCalendar: z.boolean(),
+  tileAppearance: tileAppearanceSchema.default(() => ({ defaults: null, overrides: {} })),
 });
 export const homepageSaveSchema = z.strictObject({
   operationId: operationIdSchema,
   baseRevision: z.number().int().nonnegative(),
-  preferences: homepagePreferencesSchema,
+  preferences: homepagePreferencesSchema.extend({ tileAppearance: tileAppearanceSchema.optional() }),
 });
 
 export const placementSchema = z.union([

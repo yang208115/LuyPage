@@ -189,3 +189,39 @@
 }
 
 .homepage-layout-toolbar button:hover, .grid-drag-handle:hover, .grid-resize-handle:hover, .pin-drag-handle:hover { color: #fff; background: #35535b; border-color: #fff9; }
+
+/* Surface opacity is independent of content; icons keep their original colors. */
+.homepage-grid-item.tile-customized { border-radius: var(--tile-radius); }
+.tile-customized .homepage-grid-content > .home-tile,
+.tile-customized .homepage-grid-content > .home-search,
+.tile-customized .homepage-grid-content > .home-favorites {
+  background: var(--tile-background); border: 1px solid var(--tile-border); border-radius: var(--tile-radius); color: var(--tile-text); text-shadow: none;
+}
+.tile-customized .home-folder:hover { background: var(--tile-background); border-color: var(--tile-text); }
+.tile-customized .home-widget-label, .tile-customized .home-clock p, .tile-customized .home-clock-date,
+.tile-customized .calendar-weekday, .tile-customized .home-folder-caption small,
+.tile-customized .home-pinned-status, .tile-customized .home-favorites > header button { color: var(--tile-muted); }
+.tile-customized .home-shortcut, .tile-customized .home-search-provider, .tile-customized .home-search input,
+.tile-customized .home-search-provider select, .tile-customized .home-folder-preview.is-empty { color: var(--tile-text); }
+.tile-customized .home-shortcut-name { text-shadow: none; }
+.tile-customized .home-search input::placeholder { color: var(--tile-muted); }
+.tile-customized .home-search-provider select option { color: #273b30; }
+.tile-customized .home-load-more { color: var(--tile-text); background: transparent; border-color: var(--tile-border); }
+.appearance-hint { font-size: 12px; line-height: 1.7; margin: 8px 0 14px; }
+.appearance-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px; }
+.appearance-color { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.appearance-color input { width: 42px; height: 34px; padding: 3px; cursor: pointer; }
+.appearance-color code { font-size: 11px; }
+.appearance-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.appearance-presets button { font-size: 11px; min-height: 32px; padding: 4px 7px; }
+.appearance-presets button[aria-pressed=true] { border-color: #347963; }
+.appearance-presets button span { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #0002; }
+.appearance-range { display: block; font-size: 12px; margin-top: 14px; }
+.appearance-range > span { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.appearance-range input { width: 100%; min-height: 24px; accent-color: #347963; padding: 0; }
+.appearance-preview-backdrop { display: grid; align-items: center; padding: 16px; background: linear-gradient(135deg, #98b2a4, #d8b5a5 50%, #587b88); border-radius: 12px; }
+.appearance-preview { background: var(--tile-background); border-radius: var(--tile-radius); color: var(--tile-text); padding: 20px; min-height: 160px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.appearance-preview strong { font-size: 18px; }
+.appearance-preview small, .appearance-preview span { font-size: 11px; color: var(--tile-muted); }
+@media (max-width: 760px) { .appearance-controls { grid-template-columns: 1fr; gap: 16px; }.appearance-preview { min-height: 125px; } }
+.tile-customized .home-add-shortcut .home-site-icon { color: var(--tile-text); border-color: var(--tile-border); background: transparent; }

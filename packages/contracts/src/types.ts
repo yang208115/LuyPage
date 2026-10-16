@@ -1,3 +1,4 @@
+import { DEFAULT_TILE_APPEARANCE, type TileAppearance } from './tile-appearance';
 import type { HomepageLayout, HomepageDevice } from './homepage-layout';
 export type Id = string;
 export interface Session { user: { id: Id; displayName: string }; local: boolean; loginUrl: string; logoutUrl: string }
@@ -9,16 +10,17 @@ export interface HomepagePreferences {
   searchProvider: typeof SEARCH_PROVIDERS[number];
   showClock: boolean;
   showCalendar: boolean;
+  tileAppearance: TileAppearance;
 }
 export const DEFAULT_HOMEPAGE_PREFERENCES: HomepagePreferences = {
-  wallpaperId: 'sunset-fields', searchProvider: 'bing', showClock: true, showCalendar: true,
+  wallpaperId: 'sunset-fields', searchProvider: 'bing', showClock: true, showCalendar: true, tileAppearance: DEFAULT_TILE_APPEARANCE,
 };
 export interface HomepageShortcut { id: Id; title: string; url: string; icon: IconChoice }
 export interface HomepageFolder { id: Id | null; name: string; count: number; preview: HomepageShortcut[] }
 export interface Homepage {
   revision: number; layout: HomepageLayout; pinnedIds: Id[]; preferences: HomepagePreferences; counts: { active: number; pinned: number }; folders: HomepageFolder[];
 }
-export interface HomepageSaveInput { operationId: Id; baseRevision: number; preferences: HomepagePreferences }
+export interface HomepageSaveInput { operationId: Id; baseRevision: number; preferences: Omit<HomepagePreferences, 'tileAppearance'> & { tileAppearance?: TileAppearance } }
 export interface Bookmark {
   id: Id; url: string; title: string; note: string; groupId: Id | null; tagIds: Id[]; pinned: boolean;
   icon: IconChoice; createdAt: string; updatedAt: string; deletedAt: string | null; version: number;

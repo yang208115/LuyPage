@@ -1,3 +1,4 @@
+import { TileAppearanceSettings } from './TileAppearanceSettings';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Check, Monitor, Save } from 'lucide-react';
 import type { Homepage, HomepagePreferences, MutationResult } from '@luypage/contracts';
@@ -12,7 +13,8 @@ import { prepareWallpaper } from './wallpaper-image';
 import { WallpaperGallery } from './WallpaperGallery';
 
 export interface HomepageDraft { preferences: HomepagePreferences; baseRevision: number; local: WallpaperDraft | null }
-export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount, navigationGuard }: {
+export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount, navigationGuard, appearanceTargets }: {
+  appearanceTargets: { id: string; label: string }[];
   draft: HomepageDraft; onChange: (draft: HomepageDraft) => void; onClose: () => void;
   onSaved: () => void; onAccount: () => void; navigationGuard: RefObject<() => boolean>;
 }) {
@@ -138,6 +140,7 @@ export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount,
         change({ ...current.current, local: removeWallpaper(local, id), preferences: local.selectedId === id ? { ...current.current.preferences, wallpaperId: savedBuiltin.current } : current.current.preferences });
       }} />
       <label className="field"><span>默认搜索方式</span><select aria-label="默认搜索方式" value={draft.preferences.searchProvider} onChange={event => update({ searchProvider: event.target.value as HomepagePreferences['searchProvider'] })}>{SEARCH_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
+      <TileAppearanceSettings value={draft.preferences.tileAppearance} targets={appearanceTargets} onChange={tileAppearance => update({ tileAppearance })} />
       <section className="home-settings-section"><h3>主页组件</h3><label className="home-toggle"><span>时钟<small>此刻的时间与一句问候</small></span><input type="checkbox" checked={draft.preferences.showClock} onChange={event => update({ showClock: event.target.checked })} /></label><label className="home-toggle"><span>日历<small>看看今天，也安排下一天</small></span><input type="checkbox" checked={draft.preferences.showCalendar} onChange={event => update({ showCalendar: event.target.checked })} /></label></section>
     </fieldset>
     {localReading && <p role="status">正在读取本地图库…</p>}

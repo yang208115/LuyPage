@@ -126,3 +126,27 @@ describe('homepage layout persistence', () => {
     expect((await json<Homepage>(user, '/homepage')).revision).toBe(0);
   });
 });
+
+describe('homepage tile appearance', () => {
+  it('persists custom appearance without changing layout and preserves it for older clients', async () => {
+    const user = await owner();
+    const tileAppearance = { defaults: { background: '#f5ecd8', transparency: 10, radius: 30 }, overrides: { clock: { background: '#18364f', transparency: 40, radius: 8 } } };
+    const first = await json<MutationResult<HomepagePreferences>>(user, '/homepage/preferences', 'PUT', saveInput(0, { ...DEFAULT_HOMEPAGE_PREFERENCES, tileAppearance }));
+    expect(first.data.tileAppearance).toEqual(tileAppearance);
+    const { tileAppearance: omitted, ...oldPreferences } = first.data;
+    await json(user, '/homepage/preferences', 'PUT', { operationId: crypto.randomUUID(), baseRevision: first.revision, preferences: { ...oldPreferences, showCalendar: false } });
+    const latest = await json<Homepage>(user, '/homepage');
+    expect(latest.preferences.tileAppearance).toEqual(tileAppearance);
+    expect(latest.layout).toEqual({ version: 1, desktop: null, mobile: null });
+    expect((await json<Homepage>(await owner(), '/homepage')).preferences.tileAppearance).toEqual({ defaults: null, overrides: {} });
+  });
+  it('rejects CSS injection, invalid targets and out-of-range appearance values', async () => {
+    const user = await owner(); const valid = { background: '#18364f', transparency: 35, radius: 22 };
+    for (const invalid of [{ ...valid, background: 'url(https://evil.test)' }, { ...valid, transparency: -1 }, { ...valid, transparency: 101 }, { ...valid, radius: 41 }]) {
+      const response = await request(user, '/homepage/preferences', 'PUT', saveInput(0, { ...DEFAULT_HOMEPAGE_PREFERENCES, tileAppearance: { defaults: invalid, overrides: {} } }));
+      expect(response.status).toBe(422);
+    }
+    expect((await request(user, '/homepage/preferences', 'PUT', saveInput(0, { ...DEFAULT_HOMEPAGE_PREFERENCES, tileAppearance: { defaults: null, overrides: { unknown: valid } } }))).status).toBe(422);
+    expect((await json<Homepage>(user, '/homepage')).revision).toBe(0);
+  });
+});

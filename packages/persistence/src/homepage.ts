@@ -42,8 +42,15 @@ export async function getHomepage(db: D1Database, ownerId: string): Promise<Home
 }
 
 export async function saveHomepagePreferences(db: D1Database, ownerId: string, input: HomepageSaveInput): Promise<MutationResult<HomepagePreferences>> {
-  return mutate(db, ownerId, input.operationId, ['homepage.preferences', input], async state => ({
-    statements: [statement(db, 'UPDATE workspace_state SET homepage_preferences = ? WHERE owner_id = ?', JSON.stringify(input.preferences), ownerId)],
-    result: { data: input.preferences, revision: state.data_revision + 1 },
-  }), input.baseRevision);
+  return mutate(db, ownerId, input.operationId, ['homepage.preferences', input], async state => {
+    // Older clients omit appearance; preserve the saved customization on their writes.
+    const row = await statement(db, 'SELECT homepage_preferences FROM workspace_state WHERE owner_id = ?', ownerId).first<{ homepage_preferences: string }>();
+    if (!row) throw missing();
+    const previous = homepagePreferencesSchema.parse(JSON.parse(row.homepage_preferences));
+    const preferences = homepagePreferencesSchema.parse({ ...input.preferences, tileAppearance: input.preferences.tileAppearance ?? previous.tileAppearance });
+    return {
+      statements: [statement(db, 'UPDATE workspace_state SET homepage_preferences = ? WHERE owner_id = ?', JSON.stringify(preferences), ownerId)],
+      result: { data: preferences, revision: state.data_revision + 1 },
+    };
+  }, input.baseRevision);
 }

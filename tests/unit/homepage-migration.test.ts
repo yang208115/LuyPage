@@ -1,3 +1,4 @@
+import { homepagePreferencesSchema } from '../../packages/contracts/src/validation';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { expect, it } from 'vitest';
@@ -22,6 +23,6 @@ it('upgrades an existing database without changing its bookmarks, groups or layo
     expect(db.prepare('SELECT * FROM groups').all()).toEqual(groups);
     expect(db.prepare('SELECT * FROM bookmarks').all()).toEqual(bookmarks);
     const row = db.prepare('SELECT homepage_preferences FROM workspace_state').get()!;
-    expect(JSON.parse(row.homepage_preferences as string)).toEqual(DEFAULT_HOMEPAGE_PREFERENCES);
+    expect(homepagePreferencesSchema.parse(JSON.parse(row.homepage_preferences as string))).toEqual(DEFAULT_HOMEPAGE_PREFERENCES);
   } finally { db.close(); }
 });

@@ -3,15 +3,16 @@ import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useSensor, use
 import { SortableContext, useSortable, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Grip, MoveDiagonal2 } from 'lucide-react';
-import { homepageColumns, type HomepageDevice, type HomepageLayoutProfile, type HomepageTile } from '@luypage/contracts';
+import { homepageColumns, type HomepageDevice, type HomepageLayoutProfile, type HomepageTile, type TileAppearance, type TileStyle } from '@luypage/contracts';
+import { tileStyleVariables } from './tile-appearance';
 import { placeHomepageTile } from '@luypage/domain';
 
 const ROW = 56; const GAP = 16;
 interface GridProps {
-  device: HomepageDevice; profile: HomepageLayoutProfile; editing: boolean; disabled: boolean;
+  appearance: TileAppearance; device: HomepageDevice; profile: HomepageLayoutProfile; editing: boolean; disabled: boolean;
   contents: Map<string, { label: string; node: ReactNode }>; onChange: (profile: HomepageLayoutProfile) => void;
 }
-export function HomepageGrid({ device, profile, editing, disabled, contents, onChange }: GridProps) {
+export function HomepageGrid({ appearance, device, profile, editing, disabled, contents, onChange }: GridProps) {
   const ref = useRef<HTMLDivElement>(null); const [width, setWidth] = useState(1000);
   const [preview, setPreview] = useState<HomepageLayoutProfile | null>(null);
   const columns = homepageColumns(device); const stepX = (width + GAP) / columns;
@@ -38,7 +39,7 @@ export function HomepageGrid({ device, profile, editing, disabled, contents, onC
     <div ref={ref} className={`homepage-grid ${editing ? 'is-grid-editing' : ''}`} aria-label="我的主页组件" style={{ '--grid-columns': columns, '--grid-step-x': `${stepX}px` } as CSSProperties}>
       {displayed.items.filter(item => contents.has(item.id)).map(item => {
         const content = contents.get(item.id)!;
-        return <GridTile key={item.id} item={item} label={content.label} editing={editing} disabled={disabled} stepX={stepX}
+        return <GridTile appearance={appearance.overrides[item.id] ?? appearance.defaults} key={item.id} item={item} label={content.label} editing={editing} disabled={disabled} stepX={stepX}
           onResize={(w, h, commit) => {
             const original = profile.items.find(tile => tile.id === item.id)!;
             const next = placeHomepageTile(profile, { ...original, w, h }, device);
@@ -48,14 +49,14 @@ export function HomepageGrid({ device, profile, editing, disabled, contents, onC
     </div>
   </DndContext>;
 }
-function GridTile({ item, label, children, editing, disabled, stepX, onResize, onCancel }: {
-  item: HomepageTile; label: string; children: ReactNode; editing: boolean; disabled: boolean; stepX: number;
+function GridTile({ appearance, item, label, children, editing, disabled, stepX, onResize, onCancel }: {
+  appearance: TileStyle | null; item: HomepageTile; label: string; children: ReactNode; editing: boolean; disabled: boolean; stepX: number;
   onResize: (w: number, h: number, commit: boolean) => void; onCancel: () => void;
 }) {
   const drag = useDraggable({ id: item.id, disabled: !editing || disabled });
   const resize = useRef<{ pointer: number; x: number; y: number; w: number; h: number } | null>(null);
-  return <div ref={drag.setNodeRef} className={`homepage-grid-item tile-${item.id.split(':')[0]} ${drag.isDragging ? 'is-dragging' : ''}`} data-tile-id={item.id}
-    style={{ gridColumn: `${item.x + 1} / span ${item.w}`, gridRow: `${item.y + 1} / span ${item.h}` }}>
+  return <div ref={drag.setNodeRef} className={`homepage-grid-item tile-${item.id.split(':')[0]} ${drag.isDragging ? 'is-dragging' : ''} ${appearance ? 'tile-customized' : ''}`} data-tile-id={item.id}
+    style={{ ...(appearance ? tileStyleVariables(appearance) : {}), gridColumn: `${item.x + 1} / span ${item.w}`, gridRow: `${item.y + 1} / span ${item.h}` }}>
     <div className="homepage-grid-content" inert={editing && item.id !== 'favorites' ? true : undefined}>{children}</div>
     {editing && <>
       <button ref={drag.setActivatorNodeRef} className="grid-drag-handle" aria-label={`移动${label}`} disabled={disabled} {...drag.attributes} {...drag.listeners}><Grip size={16} /><span>{label}</span></button>

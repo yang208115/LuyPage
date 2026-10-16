@@ -152,12 +152,12 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
         <ErrorNotice error={layout.error} />
         {layout.error && (layout.conflict ? <div className="button-row"><button disabled={layout.saving} onClick={() => void layout.resolveConflict(false)}>使用最新布局</button><button disabled={layout.saving} onClick={() => void layout.resolveConflict(true)}>将当前布局应用到最新版本</button></div> : <button disabled={layout.saving} onClick={layout.retry}>重试保存</button>)}
       </div>}
-      {homepage.isPending ? <div className="home-tile home-loading" role="status">正在准备你的空间…</div> : <HomepageGrid device={layout.device} profile={layout.profile} editing={layout.editing} disabled={!!layout.error || layout.blocked} contents={contents} onChange={layout.change} />}
+      {homepage.isPending ? <div className="home-tile home-loading" role="status">正在准备你的空间…</div> : <HomepageGrid appearance={preferences.tileAppearance} device={layout.device} profile={layout.profile} editing={layout.editing} disabled={!!layout.error || layout.blocked} contents={contents} onChange={layout.change} />}
       <footer className="home-footer"><span><Leaf size={13} />{localWallpaper.url ? '属于你的风景' : wallpaper.caption}</span><span><ShieldCheck size={12} />你的私有空间</span></footer>
     </main>
     {mobileMenu && <Modal title="你的空间" onClose={() => setMobileMenu(false)} className="home-mobile-menu"><div className="home-mobile-nav">{navigation}</div></Modal>}
     {activeFolder && <FolderDialog key={activeFolder.id ?? 'ungrouped'} folder={activeFolder} onClose={() => setFolderId(undefined)} onAdd={() => { setFolderId(undefined); onAdd(activeFolder.id); }} onLibrary={() => onLibrary(activeFolder.id ?? 'ungrouped')} />}
-    {draft && <HomepageSettings draft={draft} onChange={setDraft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); localWallpaper.reload(); setNotice('主页设置已保存'); }} onAccount={onAccount} navigationGuard={navigationGuard} />}
+    {draft && <HomepageSettings appearanceTargets={[{ id: 'search', label: '搜索框' }, { id: 'clock', label: '时钟' }, { id: 'calendar', label: '日历' }, { id: 'favorites', label: '常用收藏' }, ...folders.map(folder => ({ id: folder.id === null ? 'ungrouped' : `folder:${folder.id}`, label: `文件夹 · ${folder.name}` }))]} draft={draft} onChange={setDraft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); localWallpaper.reload(); setNotice('主页设置已保存'); }} onAccount={onAccount} navigationGuard={navigationGuard} />}
     {notice && <div className="toast home-toast" role="status"><Check size={17} />{notice}<button aria-label="关闭提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
   </div>;
 }
