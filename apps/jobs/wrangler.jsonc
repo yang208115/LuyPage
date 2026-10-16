@@ -1,0 +1,32 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // Local simulation only. Do not deploy or provision these placeholder resources.
+  "name": "luypage-jobs-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "luypage-local",
+    "database_id": "00000000-0000-0000-0000-000000000000",
+    "migrations_dir": "../../packages/persistence/migrations"
+  }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "luypage-files-local" }],
+  "queues": {
+    "producers": [{ "binding": "JOBS_QUEUE", "queue": "luypage-jobs-local" }],
+    "consumers": [
+      { "queue": "luypage-jobs-local", "max_batch_size": 10, "max_retries": 5, "dead_letter_queue": "luypage-jobs-dlq-local" },
+      { "queue": "luypage-jobs-dlq-local", "max_batch_size": 10, "max_retries": 5 }
+    ]
+  },
+  "vars": { "DEAD_LETTER_QUEUE": "luypage-jobs-dlq-local" },
+  // No production cron is enabled. Invoke scheduled locally for validation.
+  "triggers": { "crons": [] },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  }
+}

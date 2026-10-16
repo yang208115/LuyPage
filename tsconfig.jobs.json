@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "types/runtime.d.ts",
+    "apps/jobs/src",
+    "apps/jobs/worker-configuration.d.ts",
+    "packages/storage/src"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.workers.ts"
+  ]
+}

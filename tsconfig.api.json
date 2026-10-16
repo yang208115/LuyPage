@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "types/runtime.d.ts",
+    "apps/api/src",
+    "apps/api/worker-configuration.d.ts",
+    "packages/contracts/src",
+    "packages/domain/src",
+    "packages/persistence/src"
+  ],
+  "exclude": [
+    "**/*.test.ts"
+  ]
+}

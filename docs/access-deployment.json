@@ -1,0 +1,27 @@
+{
+  "accountId": "97163c2808d095a7726108c8074af8ca",
+  "policy": {
+    "name": "LuyPage owner only",
+    "decision": "allow",
+    "include": [{ "email": { "email": "a3305587173@outlook.com" } }],
+    "exclude": [],
+    "require": [],
+    "session_duration": "24h"
+  },
+  "application": {
+    "name": "LuyPage",
+    "type": "self_hosted",
+    "domain": "luypage.lyuy.workers.dev",
+    "allowed_idps": ["f0a5c304-95b7-4f59-8ded-861a59034f4d"],
+    "session_duration": "24h",
+    "http_only_cookie_attribute": true,
+    "same_site_cookie_attribute": "lax",
+    "app_launcher_visible": false
+  },
+  "policyId": "b52e1db9-b2ec-4848-ab0a-97c300ad2b9d",
+  "applicationId": "26a926f8-1cc6-4321-a425-49b9c076a251",
+  "audience": "e57b9eb52ed95d4d347ed8b73bcd28f00656cc1ce2e565c798a9f2b546cad0b1",
+  "policyAttachment": "Attached to the LuyPage application only, precedence 1.",
+  "issuer": "https://cfewwevf.cloudflareaccess.com",
+  "status": "created-after-user-approval"
+}

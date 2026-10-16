@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "luypage", "main": "apps/api/src/index.ts", "compatibility_date": "2026-10-15",
+  "account_id": "97163c2808d095a7726108c8074af8ca",
+  "compatibility_flags": ["nodejs_compat"], "workers_dev": true, "preview_urls": false,
+  "assets": { "directory": "apps/web/dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api", "/api/*"] },
+  "d1_databases": [{ "binding": "DB", "database_name": "luypage", "database_id": "6fa6c485-6817-4417-aad6-e44a30c90600", "migrations_dir": "packages/persistence/migrations" }],
+  "vars": { "ACCESS_ISSUER": "https://cfewwevf.cloudflareaccess.com", "ACCESS_AUD": "e57b9eb52ed95d4d347ed8b73bcd28f00656cc1ce2e565c798a9f2b546cad0b1", "APP_ORIGIN": "https://luypage.lyuy.workers.dev", "TRANSFER_ENABLED": "false" },
+  "observability": { "enabled": true, "redact_query_string": true, "logs": { "enabled": true, "invocation_logs": false }, "traces": { "enabled": true, "head_sampling_rate": 0.01 } }
+}

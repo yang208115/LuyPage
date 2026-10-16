@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "types/runtime.d.ts",
+    "apps/icon-fetcher/src",
+    "apps/icon-fetcher/worker-configuration.d.ts"
+  ]
+}

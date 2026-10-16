@@ -1,0 +1,7 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "luypage-local", "main": "apps/api/src/local.ts", "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"], "workers_dev": false, "preview_urls": false,
+  "d1_databases": [{ "binding": "DB", "database_name": "luypage-local", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "packages/persistence/migrations" }],
+  "vars": { "ACCESS_ISSUER": "", "ACCESS_AUD": "", "APP_ORIGIN": "http://127.0.0.1:5173", "TRANSFER_ENABLED": "false" }
+}
