@@ -7,6 +7,7 @@ import type { AppEnv } from './context';
 import { registerRoutes } from './routes';
 import { registerTransferRoutes } from './transfers';
 import { registerIconRoutes } from './icons';
+import { registerWeatherRoutes } from './weather';
 
 export function createApp(auth: MiddlewareHandler<AppEnv>) {
   const app = new Hono<AppEnv>();
@@ -30,6 +31,7 @@ export function createApp(auth: MiddlewareHandler<AppEnv>) {
   app.get('/api/session', c => c.json({ user: { id: c.get('ownerId'), displayName: c.get('displayName') }, local: c.get('isLocal'), loginUrl: '/', logoutUrl: c.get('isLocal') ? '/' : '/cdn-cgi/access/logout' } satisfies Session));
   registerRoutes(app);
   registerIconRoutes(app);
+  registerWeatherRoutes(app);
   registerTransferRoutes(app);
   app.notFound(c => c.json({ error: { code: 'NOT_FOUND', message: '请求的资源不存在。', requestId: c.get('requestId') ?? crypto.randomUUID() } }, 404));
   app.onError((error, c) => {

@@ -129,8 +129,8 @@ test('homepage shortcut sorting persists independently from library pinned order
   await reset(request, device);
   const library = await (await request.get('/api/layout/index')).json();
   await page.goto('/'); await edit(page, isMobile);
-  const first = page.getByRole('button', { name: `排序${titles[0]}`, exact: true });
-  const second = page.getByRole('button', { name: `排序${titles[1]}`, exact: true });
+  const first = page.getByRole('button', { name: `移动网站：${titles[0]}`, exact: true });
+  const second = page.getByRole('button', { name: `移动网站：${titles[1]}`, exact: true });
   await first.scrollIntoViewIfNeeded(); const a = (await first.boundingBox())!; const b = (await second.boundingBox())!;
   const response = page.waitForResponse(res => res.url().endsWith('/api/homepage/layout') && res.request().method() === 'PUT');
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down();
@@ -140,6 +140,88 @@ test('homepage shortcut sorting persists independently from library pinned order
   expect(order.indexOf(ids[1]!)).toBeLessThan(order.indexOf(ids[0]!));
   await page.getByRole('button', { name: '完成编辑' }).click(); await page.reload();
   const links = page.locator('.home-shortcuts a'); await expect(links.filter({ hasText: titles[1]! })).toBeVisible();
-  const visible = await links.allTextContents(); expect(visible.indexOf(titles[1]!)).toBeLessThan(visible.indexOf(titles[0]!));
+  const visible = await page.locator('.home-shortcuts .home-shortcut-name').allTextContents(); expect(visible.indexOf(titles[1]!)).toBeLessThan(visible.indexOf(titles[0]!));
   const after = await (await request.get('/api/layout/index')).json(); expect({ ...after, revision: library.revision }).toEqual(library);
+});
+
+test('a website can occupy an empty cell and keep its gap after autosave and reload', async ({ page, request, isMobile }, info) => {
+  const device = isMobile ? 'mobile' : 'desktop';
+  const ids: string[] = [];
+  for (const name of ['自由摆放', '保持位置']) {
+    const response = await request.post('/api/bookmarks', { headers, data: { operationId: crypto.randomUUID(), title: `${name}-${crypto.randomUUID()}`, url: `https://example.com/${crypto.randomUUID()}`, pinned: true } });
+    expect(response.ok()).toBe(true); ids.push((await response.json()).data.id);
+  }
+  const current = await home(request);
+  const order = [...ids, ...current.pinnedIds.filter(id => !ids.includes(id))];
+  const profile = defaultHomepageProfile(device, current.folders.filter(folder => folder.id || folder.count).map(folder => folder.id ? `folder:${folder.id}` : 'ungrouped'), order);
+  profile.pinnedSlots = order.map((_, index) => index < 2 ? index : index + 15);
+  profile.items.find(item => item.id === 'favorites')!.h = 8;
+  const response = await request.put('/api/homepage/layout', { headers, data: { operationId: crypto.randomUUID(), baseRevision: current.revision, device, profile } });
+  expect(response.ok()).toBe(true);
+  const library = await (await request.get('/api/layout/index')).json();
+  const other = (await home(request)).layout[device === 'desktop' ? 'mobile' : 'desktop'];
+  await page.goto('/'); await edit(page, isMobile);
+  const grid = page.locator('.home-pin-grid');
+  const cell = page.locator(`[data-pin-id="${ids[0]}"]`);
+  const handle = cell.getByRole('button', { name: /^移动网站：/ });
+  await handle.evaluate(element => element.scrollIntoView({ block: 'center' }));
+  const columns = Number(await grid.getAttribute('data-pin-columns'));
+  const gridBox = (await grid.boundingBox())!;
+  const start = (await handle.boundingBox())!;
+  const row = await grid.evaluate(element => parseFloat(getComputedStyle(element).gridAutoRows));
+  const savedResponse = page.waitForResponse(res => res.url().endsWith('/api/homepage/layout') && res.request().method() === 'PUT');
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2); await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2 + (gridBox.width + 12) / columns, start.y + start.height / 2 + row, { steps: 12 });
+  await expect(page.locator('.home-pin-drop-preview')).toBeVisible();
+  await page.mouse.up();
+  expect((await savedResponse).ok()).toBe(true); await saved(page);
+  const slot = columns + 1;
+  await expect(cell).toHaveAttribute('data-pin-slot', String(slot));
+  await expect(page.locator(`[data-pin-id="${ids[1]}"]`)).toHaveAttribute('data-pin-slot', '1');
+  await expect(grid.locator('[data-pin-slot="0"]')).toHaveCount(0);
+  await page.getByRole('button', { name: '完成编辑' }).click(); await page.reload();
+  await expect(cell).toHaveAttribute('data-pin-slot', String(slot));
+  await expect(grid.locator('[data-pin-slot="0"]')).toHaveCount(0);
+  const after = await home(request);
+  expect(after.layout[device === 'desktop' ? 'mobile' : 'desktop']).toEqual(other);
+  const afterLibrary = await (await request.get('/api/layout/index')).json();
+  expect({ ...afterLibrary, revision: library.revision }).toEqual(library);
+  await page.screenshot({ path: info.outputPath('free-pin-placement.png'), fullPage: true });
+});
+
+test('keyboard website placement supports cancel and undo without collapsing empty cells', async ({ page, request, isMobile }) => {
+  const device = isMobile ? 'mobile' : 'desktop';
+  const response = await request.post('/api/bookmarks', { headers, data: { operationId: crypto.randomUUID(), title: `键盘摆放-${crypto.randomUUID()}`, url: `https://example.com/${crypto.randomUUID()}`, pinned: true } });
+  expect(response.ok()).toBe(true);
+  const id = (await response.json()).data.id as string;
+  await reset(request, device);
+  await page.goto('/'); await edit(page, isMobile);
+  const grid = page.locator('.home-pin-grid');
+  const cell = page.locator(`[data-pin-id="${id}"]`);
+  const handle = cell.getByRole('button', { name: /^移动网站：/ });
+  // The shared fixture can exceed the first twenty favorites across projects.
+  while (await cell.count() === 0) {
+    await page.getByRole('button', { name: '更多常用收藏', exact: true }).click();
+    await expect(page.getByRole('button', { name: '正在加载…', exact: true })).toHaveCount(0);
+  }
+  await handle.evaluate(element => element.scrollIntoView({ block: 'center' }));
+  const initial = Number(await cell.getAttribute('data-pin-slot'));
+  const columns = Number(await grid.getAttribute('data-pin-columns'));
+  await handle.focus(); await page.keyboard.press('Space');
+  await expect(handle).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.home-pin-drop-preview')).toHaveCSS('grid-row-start', String(Math.floor(initial / columns) + 2));
+  await page.keyboard.press('Escape');
+  await expect(handle).not.toHaveAttribute('aria-pressed', 'true');
+  await expect(cell).toHaveAttribute('data-pin-slot', String(initial));
+  await saved(page);
+  await handle.focus(); await page.keyboard.press('Space');
+  await expect(handle).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.home-pin-drop-preview')).toHaveCSS('grid-row-start', String(Math.floor(initial / columns) + 2));
+  await page.keyboard.press('Space');
+  await expect(handle).not.toHaveAttribute('aria-pressed', 'true');
+  await expect(cell).toHaveAttribute('data-pin-slot', String(initial + columns)); await saved(page);
+  await page.getByRole('button', { name: '撤销上一步' }).click(); await saved(page);
+  await expect(cell).toHaveAttribute('data-pin-slot', String(initial));
 });

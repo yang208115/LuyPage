@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import { idSchema } from './validation';
+import { MIN_SHORTCUT_ICON_SIZE, MAX_SHORTCUT_ICON_SIZE } from './types';
 
 export type HomepageDevice = 'desktop' | 'mobile';
 export interface HomepageTile { id: string; x: number; y: number; w: number; h: number }
-export interface HomepageLayoutProfile { items: HomepageTile[]; pinnedOrder: string[] }
+export interface HomepageLayoutProfile { items: HomepageTile[]; pinnedOrder: string[]; pinnedSlots?: number[]; pinnedSizes?: Record<string, number> }
 export interface HomepageLayout { version: 1; desktop: HomepageLayoutProfile | null; mobile: HomepageLayoutProfile | null }
 export const DEFAULT_HOMEPAGE_LAYOUT: HomepageLayout = { version: 1, desktop: null, mobile: null };
 export const homepageColumns = (device: HomepageDevice) => device === 'mobile' ? 4 : 12;
+export const MAX_HOMEPAGE_PIN_SLOT = 100_000;
 export function homepageTileMinimum(id: string, device: HomepageDevice) {
   const mobile = device === 'mobile';
   return { w: id === 'search' ? (mobile ? 4 : 6) : id === 'favorites' ? 4 : id === 'clock' ? (mobile ? 4 : 5) : id === 'calendar' ? (mobile ? 2 : 4) : mobile ? 2 : 3,
@@ -14,12 +16,15 @@ export function homepageTileMinimum(id: string, device: HomepageDevice) {
 }
 export const homepageLayoutProfileSchema = z.strictObject({
   items: z.array(z.strictObject({
-    id: z.string().regex(/^(search|clock|calendar|favorites|ungrouped|folder:[A-Za-z0-9_-]{1,36})$/),
+    id: z.string().regex(/^(search|clock|calendar|weather|favorites|ungrouped|folder:[A-Za-z0-9_-]{1,36})$/),
     x: z.number().int().min(0).max(11), y: z.number().int().min(0).max(100_000),
     w: z.number().int().min(1).max(12), h: z.number().int().min(1).max(20),
-  })).max(5005).refine(items => new Set(items.map(item => item.id)).size === items.length, '组件不能重复'),
+  })).max(5006).refine(items => new Set(items.map(item => item.id)).size === items.length, '组件不能重复'),
   pinnedOrder: z.array(idSchema).max(50_000).refine(ids => new Set(ids).size === ids.length, '常用网站不能重复'),
-});
+  pinnedSlots: z.array(z.number().int().min(0).max(MAX_HOMEPAGE_PIN_SLOT)).max(50_000).optional(),
+  pinnedSizes: z.record(idSchema, z.number().int().min(MIN_SHORTCUT_ICON_SIZE).max(MAX_SHORTCUT_ICON_SIZE)).optional(),
+}).refine(profile => !profile.pinnedSlots || profile.pinnedSlots.length === profile.pinnedOrder.length && profile.pinnedSlots.every((slot, index, slots) => index === 0 || slot > slots[index - 1]!), '网站位置必须与常用网站一一对应，且不能重叠')
+  .refine(profile => { const ids = new Set(profile.pinnedOrder); return Object.keys(profile.pinnedSizes ?? {}).every(id => ids.has(id)); }, '图标大小只能应用到当前布局中的常用网站');
 export const homepageLayoutSchema = z.strictObject({ version: z.literal(1), desktop: homepageLayoutProfileSchema.nullable(), mobile: homepageLayoutProfileSchema.nullable() });
 export const homepageLayoutSaveSchema = z.strictObject({
   operationId: z.uuid(), baseRevision: z.number().int().nonnegative(), device: z.enum(['desktop', 'mobile']), profile: homepageLayoutProfileSchema,

@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, useSortable, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useSensor, useSensors, type DragEndEvent, type DragMoveEvent } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Grip, MoveDiagonal2 } from 'lucide-react';
-import { homepageColumns, type HomepageDevice, type HomepageLayoutProfile, type HomepageTile, type TileAppearance, type TileStyle } from '@luypage/contracts';
+import { MAX_HOMEPAGE_PIN_SLOT, MIN_SHORTCUT_ICON_SIZE, MAX_SHORTCUT_ICON_SIZE, homepageColumns, type HomepageDevice, type HomepageLayoutProfile, type HomepageTile, type TileAppearance, type TileStyle } from '@luypage/contracts';
 import { tileStyleVariables } from './tile-appearance';
-import { placeHomepageTile } from '@luypage/domain';
+import { homepagePinSlots, placeHomepagePin, placeHomepageTile, resizeHomepagePin } from '@luypage/domain';
 
 const ROW = 56; const GAP = 16;
 interface GridProps {
@@ -73,14 +72,106 @@ function GridTile({ appearance, item, label, children, editing, disabled, stepX,
     </>}
   </div>;
 }
-export function SortableHomepagePins({ ids, disabled, onMove, children }: { ids: string[]; disabled: boolean; onMove: (active: string, over: string) => void; children: ReactNode }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 7 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
-  return <DndContext sensors={sensors} onDragEnd={({ active, over }) => { if (!disabled && over && active.id !== over.id) onMove(String(active.id), String(over.id)); }}><SortableContext items={ids} strategy={rectSortingStrategy}>{children}</SortableContext></DndContext>;
+export function HomepagePins({ items, profile, device, iconSize, editing, disabled, onChange, addButton }: {
+  items: { id: string; title: string; node: ReactNode }[]; profile: HomepageLayoutProfile; device: HomepageDevice;
+  iconSize: number; editing: boolean; disabled: boolean; onChange: (profile: HomepageLayoutProfile) => void; addButton: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(1000);
+  const [sizePreview, setSizePreview] = useState<{ id: string; size: number } | null>(null);
+  const sizeOf = (id: string) => sizePreview?.id === id ? sizePreview.size : profile.pinnedSizes?.[id] ?? iconSize;
+  // Each website keeps its own square. Reserve enough room for the largest one
+  // so resizing cannot cover a neighbor or create a second draggable cell.
+  const largest = Math.max(iconSize, ...items.map(item => sizeOf(item.id)));
+  const columns = Math.max(1, Math.floor((width + 12) / (Math.max(device === 'mobile' ? 64 : 76, largest) + 12)));
+  const row = largest + 42;
+  const stepX = (width + 12) / columns;
+  const slots = useMemo(() => homepagePinSlots(profile), [profile]);
+  const [preview, setPreview] = useState<number | null>(null);
+  const origin = useRef<{ id: string; slot: number; columns: number; stepX: number; row: number; keyboard: boolean; target: number } | null>(null);
+  const metrics = useRef({ stepX, row }); metrics.current = { stepX, row };
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 7 } }), useSensor(KeyboardSensor, {
+    scrollBehavior: 'auto',
+    coordinateGetter: (event, { currentCoordinates }) => {
+      const shifts: Record<string, [number, number]> = { ArrowRight: [metrics.current.stepX, 0], ArrowLeft: [-metrics.current.stepX, 0], ArrowDown: [0, metrics.current.row], ArrowUp: [0, -metrics.current.row] };
+      const shift = shifts[event.code]; if (!shift) return undefined;
+      const start = origin.current;
+      if (start?.keyboard) {
+        // Keyboard movement addresses cells directly: scrolling must not consume a step.
+        const x = Math.max(0, Math.min(start.columns - 1, start.target % start.columns + Math.sign(shift[0])));
+        const y = Math.max(0, Math.floor(start.target / start.columns) + Math.sign(shift[1]));
+        start.target = Math.min(MAX_HOMEPAGE_PIN_SLOT, y * start.columns + x);
+        setPreview(start.target);
+      }
+      event.preventDefault(); return { x: currentCoordinates.x + shift[0], y: currentCoordinates.y + shift[1] };
+    },
+  }));
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new ResizeObserver(entries => { const entry = entries[0]; if (entry) setWidth(entry.contentRect.width); });
+    observer.observe(ref.current); return () => observer.disconnect();
+  }, []);
+  useEffect(() => { origin.current = null; setPreview(null); }, [columns, editing, device, iconSize]);
+  useEffect(() => setSizePreview(null), [profile, editing, device, disabled]);
+  function target(event: DragMoveEvent | DragEndEvent): number | null {
+    const start = origin.current;
+    if (!start) return null;
+    if (start.keyboard) return start.target;
+    const x = Math.max(0, Math.min(start.columns - 1, start.slot % start.columns + Math.round(event.delta.x / start.stepX)));
+    const y = Math.max(0, Math.floor(start.slot / start.columns) + Math.round(event.delta.y / start.row));
+    return Math.min(MAX_HOMEPAGE_PIN_SLOT, y * start.columns + x);
+  }
+  const last = Math.max(-1, ...items.map((item, index) => slots.get(item.id) ?? index));
+  const addSlot = last + 1;
+  const rows = Math.ceil((Math.max(addSlot, preview ?? 0) + 1) / columns) + (editing ? 1 : 0);
+  const cell = (slot: number) => ({ gridColumn: slot % columns + 1, gridRow: Math.floor(slot / columns) + 1 });
+  return <DndContext sensors={sensors}
+    onDragStart={({ active, activatorEvent }) => { const slot = slots.get(String(active.id)); if (slot !== undefined) { origin.current = { id: String(active.id), slot, columns, stepX, row, keyboard: activatorEvent.type === 'keydown', target: slot }; setPreview(slot); } }}
+    onDragMove={event => setPreview(target(event))}
+    onDragCancel={() => { origin.current = null; setPreview(null); }}
+    onDragEnd={event => { const slot = target(event); const id = origin.current?.id; origin.current = null; setPreview(null); if (!disabled && editing && id && slot !== null) onChange(placeHomepagePin(profile, id, slot)); }}>
+    <div ref={ref} className={`home-shortcuts home-pin-grid ${editing ? 'is-pin-editing' : ''}`} data-pin-columns={columns}
+      style={{ '--pin-columns': columns, '--pin-row': `${row}px`, '--pin-step-x': `${stepX}px`, minHeight: rows * row } as CSSProperties}>
+      {items.map((item, index) => <HomepagePin key={item.id} id={item.id} title={item.title} slot={slots.get(item.id) ?? index} position={cell(slots.get(item.id) ?? index)} iconSize={sizeOf(item.id)} editing={editing} disabled={disabled}
+        onResize={(size, commit) => {
+          const bounded = Math.max(MIN_SHORTCUT_ICON_SIZE, Math.min(MAX_SHORTCUT_ICON_SIZE, Math.round(size)));
+          if (commit) { setSizePreview(null); if (editing && !disabled) onChange(resizeHomepagePin(profile, item.id, bounded)); }
+          else setSizePreview({ id: item.id, size: bounded });
+        }} onCancelResize={() => setSizePreview(null)}>{item.node}</HomepagePin>)}
+      <div className="home-pin-add" style={cell(addSlot)}>{addButton}</div>
+      {editing && preview !== null && <div className="home-pin-drop-preview" aria-hidden="true" style={cell(preview)}><span>放在这里</span></div>}
+    </div>
+  </DndContext>;
 }
-export function SortableHomepagePin({ id, title, editing, disabled, children }: { id: string; title: string; editing: boolean; disabled: boolean; children: ReactNode }) {
-  const sort = useSortable({ id, disabled: !editing || disabled });
-  return <div ref={sort.setNodeRef} className="sortable-home-pin" style={{ transform: CSS.Transform.toString(sort.transform), transition: sort.transition }}>
+function HomepagePin({ id, title, slot, position, iconSize, editing, disabled, children, onResize, onCancelResize }: {
+  id: string; title: string; slot: number; position: CSSProperties; iconSize: number; editing: boolean; disabled: boolean; children: ReactNode;
+  onResize: (size: number, commit: boolean) => void; onCancelResize: () => void;
+}) {
+  const drag = useDraggable({ id, disabled: !editing || disabled });
+  const resize = useRef<{ pointer: number; x: number; y: number; size: number } | null>(null);
+  useEffect(() => { resize.current = null; }, [editing, disabled]);
+  const resized = (x: number, y: number) => {
+    const start = resize.current!;
+    // Project movement onto the square's diagonal: both axes control one side.
+    return start.size + Math.round((x - start.x + y - start.y) / 2);
+  };
+  return <div ref={drag.setNodeRef} className={`sortable-home-pin ${drag.isDragging ? 'is-dragging' : ''}`} data-pin-id={id} data-pin-slot={slot} data-pin-size={iconSize}
+    style={{ ...position, '--home-icon-size': `${iconSize}px`, transform: CSS.Transform.toString(drag.transform) } as CSSProperties}>
     <div inert={editing ? true : undefined}>{children}</div>
-    {editing && <button ref={sort.setActivatorNodeRef} className="pin-drag-handle" aria-label={`排序${title}`} disabled={disabled} {...sort.attributes} {...sort.listeners}><Grip size={16} /></button>}
+    {editing && <>
+      <button ref={drag.setActivatorNodeRef} className="pin-drag-handle" aria-label={`移动网站：${title}`} title="直接拖动网站自由摆放，也可使用空格和方向键" disabled={disabled} {...drag.attributes} {...drag.listeners}><Grip className="pin-drag-grip" size={15} /></button>
+      <button className="pin-resize-handle" aria-label={`调整网站大小：${title}`} title={`拖动缩放此图标 · ${iconSize} × ${iconSize} px；方向键微调，Shift 加速`} disabled={disabled || drag.isDragging}
+        onPointerDown={event => { event.preventDefault(); event.stopPropagation(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); resize.current = { pointer: event.pointerId, x: event.clientX, y: event.clientY, size: iconSize }; }}
+        onPointerMove={event => { if (resize.current?.pointer === event.pointerId) onResize(resized(event.clientX, event.clientY), false); }}
+        onPointerUp={event => { if (resize.current?.pointer !== event.pointerId) return; const size = resized(event.clientX, event.clientY); resize.current = null; onResize(size, true); }}
+        onPointerCancel={() => { resize.current = null; onCancelResize(); }}
+        onLostPointerCapture={() => { if (resize.current) { resize.current = null; onCancelResize(); } }}
+        onKeyDown={event => {
+          event.stopPropagation();
+          if (event.key === 'Escape') { resize.current = null; onCancelResize(); }
+          const direction = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 0;
+          if (direction) { event.preventDefault(); if (!resize.current) onResize(iconSize + direction * (event.shiftKey ? 10 : 1), true); }
+        }}><MoveDiagonal2 size={13} /></button>
+    </>}
   </div>;
 }

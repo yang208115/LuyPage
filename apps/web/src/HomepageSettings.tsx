@@ -1,7 +1,7 @@
 import { TileAppearanceSettings } from './TileAppearanceSettings';
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Check, Monitor, Save } from 'lucide-react';
-import type { Homepage, HomepagePreferences, MutationResult } from '@luypage/contracts';
+import { Check, Monitor, Save, Star } from 'lucide-react';
+import { DEFAULT_SHORTCUT_ICON_SIZE, MIN_SHORTCUT_ICON_SIZE, MAX_SHORTCUT_ICON_SIZE, type Homepage, type HomepagePreferences, type MutationResult } from '@luypage/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, useCommand } from './api';
 import { useSession } from './session';
@@ -11,6 +11,7 @@ import { addWallpaper, removeWallpaper, wallpaperDirty, wallpaperDraft, Wallpape
 import { readWallpaperGallery, saveWallpaperGallery } from './wallpaper-storage';
 import { prepareWallpaper } from './wallpaper-image';
 import { WallpaperGallery } from './WallpaperGallery';
+import { WeatherSettings } from './WeatherSettings';
 
 export interface HomepageDraft { preferences: HomepagePreferences; baseRevision: number; local: WallpaperDraft | null }
 export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount, navigationGuard, appearanceTargets }: {
@@ -39,7 +40,8 @@ export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount,
   const [partialSave, setPartialSave] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
-  const busy = saving || reading || localReading || importing;
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const busy = saving || reading || localReading || importing || weatherBusy;
   useBeforeUnload(dirty);
   function change(next: HomepageDraft) { current.current = next; onChange(next); }
   function mayLeave() { return !busy && (!dirty || window.confirm('放弃尚未保存的主页设置？')); }
@@ -141,7 +143,15 @@ export function HomepageSettings({ draft, onChange, onClose, onSaved, onAccount,
       }} />
       <label className="field"><span>默认搜索方式</span><select aria-label="默认搜索方式" value={draft.preferences.searchProvider} onChange={event => update({ searchProvider: event.target.value as HomepagePreferences['searchProvider'] })}>{SEARCH_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
       <TileAppearanceSettings value={draft.preferences.tileAppearance} targets={appearanceTargets} onChange={tileAppearance => update({ tileAppearance })} />
+      <section className="home-settings-section"><h3>网站图标</h3>
+        <label className="appearance-range"><span>默认图标大小 <output>{draft.preferences.shortcutIconSize} × {draft.preferences.shortcutIconSize} px</output></span><input type="range" aria-label="网站图标大小" min={MIN_SHORTCUT_ICON_SIZE} max={MAX_SHORTCUT_ICON_SIZE} step="1" value={draft.preferences.shortcutIconSize} onChange={event => update({ shortcutIconSize: Number(event.target.value) })} /></label>
+        <p className="form-hint">进入“编辑布局”，拖动单个图标右下角可独立缩放，始终保持正方形。此默认值只影响尚未单独调整的图标。</p>
+        <div className="home-icon-size-preview" aria-label="网站图标大小预览"><span className="home-site-icon"><Star aria-hidden="true" /></span><span>{draft.preferences.shortcutIconSize} × {draft.preferences.shortcutIconSize}</span></div>
+        <button type="button" disabled={draft.preferences.shortcutIconSize === DEFAULT_SHORTCUT_ICON_SIZE} onClick={() => update({ shortcutIconSize: DEFAULT_SHORTCUT_ICON_SIZE })}>恢复默认图标大小</button>
+      </section>
       <section className="home-settings-section"><h3>主页组件</h3><label className="home-toggle"><span>时钟<small>此刻的时间与一句问候</small></span><input type="checkbox" checked={draft.preferences.showClock} onChange={event => update({ showClock: event.target.checked })} /></label><label className="home-toggle"><span>日历<small>看看今天，也安排下一天</small></span><input type="checkbox" checked={draft.preferences.showCalendar} onChange={event => update({ showCalendar: event.target.checked })} /></label></section>
+      <section className="home-settings-section"><h3>天气</h3><label className="home-toggle"><span>天气<small>当前温度、体感与今日高低温</small></span><input type="checkbox" checked={draft.preferences.showWeather} onChange={event => update({ showWeather: event.target.checked })} /></label>
+        <WeatherSettings location={draft.preferences.weatherLocation} disabled={busy || expired} onBusyChange={setWeatherBusy} onChange={weatherLocation => update({ weatherLocation })} /></section>
     </fieldset>
     {localReading && <p role="status">正在读取本地图库…</p>}
     <ErrorNotice error={localError} retry={() => void loadGallery()} />

@@ -1,4 +1,4 @@
-import { defaultHomepageProfile, placeHomepageTile } from '@luypage/domain';
+import { defaultHomepageProfile, placeHomepagePin, placeHomepageTile, resizeHomepagePin } from '@luypage/domain';
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { createMiddleware } from 'hono/factory';
@@ -90,6 +90,43 @@ describe('homepage D1 API', () => {
 
 
 describe('homepage layout persistence', () => {
+  it('persists independent website sizes per device, preserves legacy writes and explicitly resets sizes', async () => {
+    const user = await owner(); const a = await add(user, null, 0); const b = await add(user, null, 2);
+    const current = await json<Homepage>(user, '/homepage');
+    const profile = resizeHomepagePin(resizeHomepagePin(defaultHomepageProfile('desktop', ['ungrouped'], [a.id, b.id]), a.id, 82), b.id, 110);
+    const save = (baseRevision: number, next: typeof profile) => json<MutationResult<HomepageLayout>>(user, '/homepage/layout', 'PUT', { operationId: crypto.randomUUID(), baseRevision, device: 'desktop', profile: next });
+    const first = await save(current.revision, profile);
+    expect(first.data.desktop?.pinnedSizes).toEqual({ [a.id]: 82, [b.id]: 110 });
+    expect(first.data.mobile).toBeNull();
+    const { pinnedSizes: omitted, ...legacy } = placeHomepagePin(profile, a.id, 15);
+    const older = await save(first.revision, legacy);
+    expect(older.data.desktop?.pinnedSizes).toEqual(profile.pinnedSizes);
+    const invalid = await request(user, '/homepage/layout', 'PUT', { operationId: crypto.randomUUID(), baseRevision: older.revision, device: 'desktop', profile: { ...profile, pinnedSizes: { foreign: 80 } } });
+    expect(invalid.status).toBe(422);
+    const reset = await save(older.revision, { ...profile, pinnedSizes: {} });
+    expect(reset.data.desktop?.pinnedSizes).toEqual({});
+    expect((await json<Homepage>(user, '/homepage')).layout.desktop?.pinnedSizes).toEqual({});
+  });
+  it('persists vacant website cells per device and preserves them for older clients', async () => {
+    const user = await owner();
+    const a = await add(user, null, 0); const b = await add(user, null, 2);
+    const before = await json<LayoutIndex>(user, '/layout/index');
+    const profile = placeHomepagePin(defaultHomepageProfile('desktop', ['ungrouped'], [a.id, b.id]), a.id, 15);
+    const save = (baseRevision: number, next = profile) => json<MutationResult<HomepageLayout>>(user, '/homepage/layout', 'PUT', { operationId: crypto.randomUUID(), baseRevision, device: 'desktop', profile: next });
+    const first = await save(before.revision);
+    expect(first.data.desktop?.pinnedSlots).toEqual([1, 15]);
+    expect(first.data.desktop?.pinnedOrder).toEqual([b.id, a.id]);
+    expect(first.data.mobile).toBeNull();
+    const { pinnedSlots: omitted, ...legacy } = profile;
+    const oldClient = await save(first.revision, legacy);
+    expect(oldClient.data.desktop?.pinnedSlots).toEqual([1, 15]);
+    const restored = await json<Homepage>(user, '/homepage');
+    expect(restored.layout.desktop).toEqual(profile);
+    const reset = defaultHomepageProfile('desktop', ['ungrouped'], [a.id, b.id]);
+    expect((await save(restored.revision, reset)).data.desktop?.pinnedSlots).toEqual([0, 1]);
+    const library = await json<LayoutIndex>(user, '/layout/index');
+    expect({ ...library, revision: before.revision }).toEqual(before);
+  });
   it('saves separate device profiles, replays receipts and preserves the library layout', async () => {
     const user = await owner();
     const a = await add(user, null, 0); const b = await add(user, null, 2);
@@ -119,7 +156,7 @@ describe('homepage layout persistence', () => {
     const user = await owner(); const other = await owner(); const foreign = await add(other, null, 0);
     const profile = defaultHomepageProfile('desktop', [], []);
     const save = (next: typeof profile) => request(user, '/homepage/layout', 'PUT', { operationId: crypto.randomUUID(), baseRevision: 0, device: 'desktop', profile: next });
-    expect((await save({ ...profile, pinnedOrder: [foreign.id] })).status).toBe(409);
+    expect((await save({ ...profile, pinnedOrder: [foreign.id], pinnedSlots: [0] })).status).toBe(409);
     expect((await save({ ...profile, items: [...profile.items, { id: 'folder:foreign', x: 0, y: 50, w: 3, h: 3 }] })).status).toBe(409);
     expect((await save({ ...profile, items: profile.items.map(item => ({ ...item, x: 0, y: 0 })) })).status).toBe(422);
     expect((await save({ ...profile, items: profile.items.slice(1) })).status).toBe(422);
@@ -128,6 +165,33 @@ describe('homepage layout persistence', () => {
 });
 
 describe('homepage tile appearance', () => {
+  it('persists a bounded square icon size and preserves it when older clients omit the field', async () => {
+    const user = await owner();
+    const first = await json<MutationResult<HomepagePreferences>>(user, '/homepage/preferences', 'PUT', saveInput(0, { ...DEFAULT_HOMEPAGE_PREFERENCES, shortcutIconSize: 96 }));
+    const { shortcutIconSize: omitted, ...legacy } = first.data;
+    await json(user, '/homepage/preferences', 'PUT', { operationId: crypto.randomUUID(), baseRevision: first.revision, preferences: { ...legacy, showClock: false } });
+    const current = await json<Homepage>(user, '/homepage');
+    expect(current.preferences.shortcutIconSize).toBe(96);
+    expect((await json<Homepage>(await owner(), '/homepage')).preferences.shortcutIconSize).toBe(62);
+    for (const size of [39, 129, 62.5, '96']) {
+      expect((await request(user, '/homepage/preferences', 'PUT', { ...saveInput(current.revision), preferences: { ...current.preferences, shortcutIconSize: size } })).status).toBe(422);
+    }
+    const reset = await json<MutationResult<HomepagePreferences>>(user, '/homepage/preferences', 'PUT', saveInput(current.revision, { ...current.preferences, shortcutIconSize: 62 }));
+    expect(reset.data.shortcutIconSize).toBe(62);
+  });
+  it('saves weather preferences, preserves them for older clients and allows explicitly clearing location', async () => {
+    const user = await owner();
+    const weatherLocation = { name: '当前位置', latitude: 25.03, longitude: 121.56 };
+    const first = await json<MutationResult<HomepagePreferences>>(user, '/homepage/preferences', 'PUT', saveInput(0, { ...DEFAULT_HOMEPAGE_PREFERENCES, showWeather: false, weatherLocation }));
+    const { showWeather: omittedWeather, weatherLocation: omittedLocation, ...legacy } = first.data;
+    await json(user, '/homepage/preferences', 'PUT', { operationId: crypto.randomUUID(), baseRevision: first.revision, preferences: { ...legacy, showClock: false } });
+    const latest = await json<Homepage>(user, '/homepage');
+    expect(latest.preferences).toMatchObject({ showWeather: false, weatherLocation, showClock: false });
+    const cleared = await json<MutationResult<HomepagePreferences>>(user, '/homepage/preferences', 'PUT', saveInput(latest.revision, { ...latest.preferences, showWeather: true, weatherLocation: null }));
+    expect(cleared.data).toMatchObject({ showWeather: true, weatherLocation: null });
+    expect((await json<Homepage>(await owner(), '/homepage')).preferences.weatherLocation).toBeNull();
+    expect((await request(user, '/homepage/preferences', 'PUT', saveInput(cleared.revision, { ...cleared.data, weatherLocation: { ...weatherLocation, latitude: 91 } }))).status).toBe(422);
+  });
   it('persists custom appearance without changing layout and preserves it for older clients', async () => {
     const user = await owner();
     const tileAppearance = { defaults: { background: '#f5ecd8', transparency: 10, radius: 30 }, overrides: { clock: { background: '#18364f', transparency: 40, radius: 8 } } };

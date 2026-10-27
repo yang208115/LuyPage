@@ -1,8 +1,9 @@
 import { tileAppearanceSchema } from './tile-appearance';
+import { weatherLocationSchema } from './weather';
 import { caseFold } from 'unicode-case-folding';
 import { z } from 'zod';
 import { AppError } from './errors';
-import { DEFAULT_PREFERENCES, WALLPAPER_IDS, SEARCH_PROVIDERS } from './types';
+import { DEFAULT_PREFERENCES, DEFAULT_SHORTCUT_ICON_SIZE, MIN_SHORTCUT_ICON_SIZE, MAX_SHORTCUT_ICON_SIZE, WALLPAPER_IDS, SEARCH_PROVIDERS } from './types';
 
 const URL_LIMIT = 8_192;
 export const MAX_BATCH_ITEMS = 5_000;
@@ -149,17 +150,21 @@ export const layoutPreferencesSchema = z.object({
   autoIcons: z.boolean().default(DEFAULT_PREFERENCES.autoIcons),
 });
 
+const shortcutIconSizeSchema = z.number().int().min(MIN_SHORTCUT_ICON_SIZE).max(MAX_SHORTCUT_ICON_SIZE);
 export const homepagePreferencesSchema = z.strictObject({
   wallpaperId: z.enum(WALLPAPER_IDS),
   searchProvider: z.enum(SEARCH_PROVIDERS),
   showClock: z.boolean(),
   showCalendar: z.boolean(),
+  showWeather: z.boolean().default(true),
+  weatherLocation: weatherLocationSchema.nullable().default(null),
+  shortcutIconSize: shortcutIconSizeSchema.default(DEFAULT_SHORTCUT_ICON_SIZE),
   tileAppearance: tileAppearanceSchema.default(() => ({ defaults: null, overrides: {} })),
 });
 export const homepageSaveSchema = z.strictObject({
   operationId: operationIdSchema,
   baseRevision: z.number().int().nonnegative(),
-  preferences: homepagePreferencesSchema.extend({ tileAppearance: tileAppearanceSchema.optional() }),
+  preferences: homepagePreferencesSchema.extend({ tileAppearance: tileAppearanceSchema.optional(), showWeather: z.boolean().optional(), weatherLocation: weatherLocationSchema.nullable().optional(), shortcutIconSize: shortcutIconSizeSchema.optional() }),
 });
 
 export const placementSchema = z.union([

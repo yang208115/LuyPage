@@ -4,3 +4,4 @@ export * from './validation';
 export * from './transfers';
 export * from './homepage-layout';
 export * from './tile-appearance';
+export * from './weather';

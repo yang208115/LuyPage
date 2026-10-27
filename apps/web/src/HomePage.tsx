@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react';
-import { ArrowDown, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronLeft, ChevronRight, Folder, Home, LayoutGrid, Leaf, Menu, Plus, Search, Settings2, ShieldCheck, Star, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronLeft, ChevronRight, Folder, Home, LayoutGrid, Leaf, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, Star, X } from 'lucide-react';
 import { DEFAULT_HOMEPAGE_PREFERENCES, type HomepageFolder, type HomepageShortcut, type HomepagePreferences } from '@luypage/contracts';
 import { useBookmarks, useHomepage } from './data';
 import { useSession, SessionNotice } from './session';
@@ -9,13 +9,17 @@ import { calendarDays, externalSearchUrl, SEARCH_OPTIONS, WALLPAPERS } from './h
 import { useWallpaper } from './use-wallpaper';
 import './homepage.css';
 import { AutomaticIcon } from './AutomaticIcon';
-import { HomepageGrid, SortableHomepagePins, SortableHomepagePin } from './HomepageGrid';
+import { HomepageGrid, HomepagePins } from './HomepageGrid';
 import { useHomepageLayout } from './use-homepage-layout';
-import { reorderLoadedPins } from '@luypage/domain';
+import { WeatherCard } from './WeatherCard';
+import { isContextMenuKey, useContextMenu, type ContextMenuItem } from './ContextMenu';
+import { bookmarkMenuItems, type BookmarkMenuAction } from './bookmark-context-menu';
 
 type HomeProps = {
   onLibrary: (groupId?: string, query?: string) => void;
   onAdd: (groupId?: string | null) => void; onAccount: () => void;
+  onBookmarkAction: (bookmark: HomepageShortcut, action: BookmarkMenuAction) => Promise<void>;
+  bookmarkActionPending: boolean; actionError: unknown;
   navigationGuard: RefObject<() => boolean>;
 };
 
@@ -51,35 +55,51 @@ function CalendarCard() {
   </section>;
 }
 function ShortcutIcon({ bookmark }: { bookmark: HomepageShortcut }) {
-  const Icon = BUILTIN_ICONS.find(item => bookmark.icon.type === 'builtin' && item.key === bookmark.icon.key)?.icon ?? Bookmark;
+  const Icon = BUILTIN_ICONS.find(item => bookmark.icon.type === 'builtin' && item.key === bookmark.icon.key)?.icon;
   let hostname = bookmark.url;
   try { hostname = new URL(bookmark.url).hostname; } catch { /* Invalid links are inert. */ }
-  const tone = [...hostname].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 7;
-  return <span className={`home-site-icon home-tone-${tone}`}><AutomaticIcon bookmark={bookmark}><Icon aria-hidden="true" size={29} strokeWidth={1.8} /></AutomaticIcon></span>;
+  const initial = hostname.replace(/^www\./, '').charAt(0).toUpperCase() || '↗';
+  return <span className="home-site-icon"><AutomaticIcon bookmark={bookmark}>{Icon ? <Icon aria-hidden="true" size={29} strokeWidth={1.8} /> : <span className="home-site-initial" aria-hidden="true">{initial}</span>}</AutomaticIcon></span>;
 }
-function Shortcut({ bookmark }: { bookmark: HomepageShortcut }) {
+type ShortcutActions = Pick<HomeProps, 'onBookmarkAction' | 'bookmarkActionPending'> & { editing?: boolean };
+function Shortcut({ bookmark, onBookmarkAction, bookmarkActionPending, editing }: { bookmark: HomepageShortcut & { pinned?: boolean } } & ShortcutActions) {
+  const menu = useContextMenu();
   const href = safeWebsite(bookmark.url);
+  const items = bookmarkMenuItems(bookmark, action => onBookmarkAction(bookmark, action), menu.notify, bookmarkActionPending);
+  const context = {
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => { if (!editing) menu.open(event, bookmark.title, items); },
+    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => { if (!editing && isContextMenuKey(event)) menu.open(event, bookmark.title, items); },
+  };
   const content = <><ShortcutIcon bookmark={bookmark} /><span className="home-shortcut-name">{bookmark.title}</span></>;
-  return href ? <a className="home-shortcut" href={href} target="_blank" rel="noopener noreferrer" title={`${bookmark.title}\n${bookmark.url}`}>{content}</a> : <span className="home-shortcut invalid" title="网址无效，请在收藏管理中编辑">{content}</span>;
+  return href ? <a className="home-shortcut" href={href} target="_blank" rel="noopener noreferrer" title={`${bookmark.title}\n${bookmark.url}`} {...context}>{content}</a> : <span className="home-shortcut invalid" tabIndex={0} title="网址无效，请在收藏管理中编辑" {...context}>{content}</span>;
 }
-function FolderCard({ folder, onOpen }: { folder: HomepageFolder; onOpen: () => void }) {
-  return <button className="home-folder home-tile" aria-label={`打开文件夹：${folder.name}`} onClick={onOpen}>
+function FolderCard({ folder, onOpen, onAdd, onManage, onLayout }: { folder: HomepageFolder; onOpen: () => void; onAdd: () => void; onManage: () => void; onLayout: () => void }) {
+  const menu = useContextMenu();
+  const items: ContextMenuItem[] = [
+    { label: '打开文件夹', icon: Folder, run: onOpen },
+    { label: '添加收藏到此分组', icon: Plus, run: onAdd },
+    { label: '管理这个分组', icon: LayoutGrid, run: onManage },
+    { label: '编辑主页布局', icon: Settings2, run: onLayout, divider: true },
+  ];
+  return <button className="home-folder home-tile" aria-label={`打开文件夹：${folder.name}`} onClick={onOpen}
+    onContextMenu={event => menu.open(event, folder.name, items)} onKeyDown={event => { if (isContextMenuKey(event)) menu.open(event, folder.name, items); }}>
     <span className={`home-folder-preview ${!folder.preview.length ? 'is-empty' : ''}`}>{folder.preview.length ? folder.preview.map(item => <ShortcutIcon key={item.id} bookmark={item} />) : <Folder size={39} strokeWidth={1.3} />}</span>
     <span className="home-folder-caption"><strong title={folder.name}>{folder.name}</strong><small>{folder.count} 个网站<ChevronRight size={13} /></small></span>
   </button>;
 }
-function FolderDialog({ folder, onClose, onAdd, onLibrary }: { folder: HomepageFolder; onClose: () => void; onAdd: () => void; onLibrary: () => void }) {
+function FolderDialog({ folder, onClose, onAdd, onLibrary, onBookmarkAction, bookmarkActionPending }: { folder: HomepageFolder; onClose: () => void; onAdd: () => void; onLibrary: () => void } & ShortcutActions) {
   const query = useBookmarks({ groupId: folder.id ?? 'ungrouped', sort: 'manual', limit: 40 });
   const items = [...new Map((query.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id, item])).values()];
   return <Modal title={folder.name} subtitle={`${query.data?.pages[0]?.total ?? folder.count} 个网站 · 留住喜欢，也随时出发`} onClose={onClose} wide className="home-folder-dialog">
     <ErrorNotice error={query.error} retry={() => void query.refetch()} />
-    {query.isPending ? <p className="home-dialog-status" role="status">正在打开文件夹…</p> : !query.error && !items.length ? <div className="home-folder-empty"><Folder size={38} /><p>这里还留着位置，给下一个好网站。</p><button className="primary" onClick={onAdd}><Plus size={16} />添加收藏</button></div> : <div className="home-dialog-shortcuts">{items.map(item => <Shortcut key={item.id} bookmark={item} />)}</div>}
+    {query.isPending ? <p className="home-dialog-status" role="status">正在打开文件夹…</p> : !query.error && !items.length ? <div className="home-folder-empty"><Folder size={38} /><p>这里还留着位置，给下一个好网站。</p><button className="primary" onClick={onAdd}><Plus size={16} />添加收藏</button></div> : <div className="home-dialog-shortcuts">{items.map(item => <Shortcut key={item.id} bookmark={item} onBookmarkAction={onBookmarkAction} bookmarkActionPending={bookmarkActionPending} />)}</div>}
     {query.hasNextPage && <button className="home-folder-more" disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>{query.isFetching ? '正在加载…' : '加载更多收藏'}</button>}
     <footer className="modal-footer"><button onClick={onAdd}><Plus size={16} />添加收藏</button><button onClick={onLibrary}>管理这个分组<ArrowUpRight size={15} /></button></footer>
   </Modal>;
 }
 
-export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeProps) {
+export function HomePage({ onLibrary, onAdd, onAccount, onBookmarkAction, bookmarkActionPending, actionError, navigationGuard }: HomeProps) {
+  const menu = useContextMenu();
   const { session } = useSession();
   const homepage = useHomepage();
   const [folderId, setFolderId] = useState<string | null | undefined>(undefined);
@@ -104,6 +124,14 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
   useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 4500); return () => window.clearTimeout(timer); }, [notice]);
   function openFolder(folder: HomepageFolder) { setMobileMenu(false); setFolderId(folder.id); }
   function settings() { if (layout.editing && !layout.finish()) return; if (data) { setMobileMenu(false); setDraft({ baseRevision: data.revision, preferences: { ...data.preferences }, local: null }); } }
+  function beginLayout() { if (data && !draft) { setMobileMenu(false); layout.begin(); } }
+  const backgroundItems: ContextMenuItem[] = [
+    { label: '添加收藏', icon: Plus, run: () => onAdd(), disabled: layout.editing },
+    { label: layout.editing ? '完成布局编辑' : '编辑主页布局', icon: LayoutGrid, run: () => { if (layout.editing) layout.finish(); else beginLayout(); }, disabled: !data || !!layout.error || layout.blocked },
+    { label: '收藏管理', icon: Folder, run: () => onLibrary() },
+    { label: '主页设置', icon: Settings2, run: settings, disabled: !data, divider: true },
+    { label: '刷新主页', icon: RefreshCw, run: async () => { await Promise.all([homepage.refetch(), pinned.refetch()]); }, disabled: layout.editing || !!draft },
+  ];
   function submit(event: FormEvent) {
     event.preventDefault();
     const query = search.trim();
@@ -127,24 +155,29 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
         <ErrorNotice error={pinned.error} retry={() => void pinned.refetch()} />
         {pinned.isPending ? <p className="home-pinned-status" role="status">正在加载常用收藏…</p> : <>
           {!pinned.error && !shortcuts.length && <p className="home-pinned-status">{data?.counts.active ? '把喜欢的网站设为常用，下次从这里出发。' : '从第一个网站开始，收藏自己的小小世界。'}</p>}
-          <SortableHomepagePins ids={shortcuts.map(item => item.id)} disabled={!layout.editing || !!layout.error || layout.blocked} onMove={(active, over) => layout.change({ ...layout.profile, pinnedOrder: reorderLoadedPins(layout.profile.pinnedOrder, shortcuts.map(item => item.id), active, over) })}><div className="home-shortcuts">{shortcuts.map(bookmark => <SortableHomepagePin key={bookmark.id} id={bookmark.id} title={bookmark.title} editing={layout.editing} disabled={!!layout.error || layout.blocked}><Shortcut bookmark={bookmark} /></SortableHomepagePin>)}<button className="home-shortcut home-add-shortcut" disabled={layout.editing} onClick={() => onAdd()}><span className="home-site-icon"><Plus size={29} strokeWidth={1.5} /></span><span className="home-shortcut-name">添加收藏</span></button></div></SortableHomepagePins>
+          <HomepagePins profile={layout.profile} device={layout.device} iconSize={preferences.shortcutIconSize} editing={layout.editing} disabled={!!layout.error || layout.blocked} onChange={layout.change}
+            items={shortcuts.map(bookmark => ({ id: bookmark.id, title: bookmark.title, node: <Shortcut bookmark={bookmark} onBookmarkAction={onBookmarkAction} bookmarkActionPending={bookmarkActionPending} editing={layout.editing} /> }))}
+            addButton={<button className="home-shortcut home-add-shortcut" disabled={layout.editing} onClick={() => onAdd()}><span className="home-site-icon"><Plus size={29} strokeWidth={1.5} /></span><span className="home-shortcut-name">添加收藏</span></button>} />
         </>}
         {pinned.hasNextPage && <button className="home-load-more" disabled={pinned.isFetching} onClick={() => void pinned.fetchNextPage()}><ArrowDown size={15} />{pinned.isFetching ? '正在加载…' : '更多常用收藏'}</button>}
       </section>) }],
   ]);
   if (preferences.showClock) contents.set('clock', { label: '时钟', node: <ClockCard /> });
   if (preferences.showCalendar) contents.set('calendar', { label: '日历', node: <CalendarCard /> });
-  for (const folder of folders) contents.set(folder.id === null ? 'ungrouped' : `folder:${folder.id}`, { label: folder.name, node: <FolderCard folder={folder} onOpen={() => openFolder(folder)} /> });
+  if (preferences.showWeather) contents.set('weather', { label: '天气', node: <WeatherCard location={preferences.weatherLocation} onConfigure={settings} /> });
+  for (const folder of folders) contents.set(folder.id === null ? 'ungrouped' : `folder:${folder.id}`, { label: folder.name, node: <FolderCard folder={folder} onOpen={() => openFolder(folder)} onAdd={() => onAdd(folder.id)} onManage={() => onLibrary(folder.id ?? 'ungrouped')} onLayout={beginLayout} /> });
   const wallpaper = WALLPAPERS.find(item => item.id === preferences.wallpaperId)!;
-  return <div className={`homepage wallpaper-${localWallpaper.url ? 'custom' : preferences.wallpaperId}`} style={{ '--home-wallpaper': `url("${localWallpaper.url ?? `/wallpapers/${preferences.wallpaperId}.webp`}")` } as CSSProperties}>
+  return <div className={`homepage wallpaper-${localWallpaper.url ? 'custom' : preferences.wallpaperId}`} style={{ '--home-wallpaper': `url("${localWallpaper.url ?? `/wallpapers/${preferences.wallpaperId}.webp`}")`, '--home-icon-size': `${preferences.shortcutIconSize}px` } as CSSProperties}
+    onContextMenu={event => { if (!(event.target instanceof Element) || event.target.closest('a, button, input, textarea, select, [contenteditable], dialog, [role="menu"]')) return; menu.open(event, '主页', backgroundItems); }}>
     <a href="#home-content" className="skip-link">跳转到主要内容</a>
     <aside className="home-rail">{navigation}</aside>
     <header className="home-mobile-header"><button className="home-icon-button" aria-label="打开主页导航" onClick={() => setMobileMenu(true)}><Menu size={22} /></button><span><Leaf size={17} />LuyPage</span><button className="home-icon-button" aria-label="打开主页设置" disabled={!data} onClick={settings}><Settings2 size={21} /></button></header>
     <main className="home-content" id="home-content">
-      <div className="home-notices"><SessionNotice /><ErrorNotice error={homepage.error} retry={() => void homepage.refetch()} /><ErrorNotice error={localWallpaper.error} retry={localWallpaper.reload} /></div>
+      <div className="home-notices"><SessionNotice /><ErrorNotice error={homepage.error} retry={() => void homepage.refetch()} /><ErrorNotice error={localWallpaper.error} retry={localWallpaper.reload} /><ErrorNotice error={actionError} /></div>
       {layout.editing && <div className="homepage-layout-toolbar" aria-label="主页布局编辑">
         <strong>{layout.device === 'mobile' ? '手机布局' : '电脑布局'}</strong>
         <span role="status">{layout.error ? '保存失败' : layout.saving || layout.dirty ? '保存中…' : '已保存'}</span>
+        <span className="homepage-pin-hint">拖动网站自由摆放，拖右下角单独缩放图标</span>
         <button disabled={!layout.canUndo} onClick={layout.undo}>撤销上一步</button>
         <button disabled={!!layout.error || layout.blocked} onClick={layout.reset}>恢复默认布局</button>
         <button disabled={layout.saving} onClick={layout.finish}>完成编辑</button>
@@ -156,8 +189,8 @@ export function HomePage({ onLibrary, onAdd, onAccount, navigationGuard }: HomeP
       <footer className="home-footer"><span><Leaf size={13} />{localWallpaper.url ? '属于你的风景' : wallpaper.caption}</span><span><ShieldCheck size={12} />你的私有空间</span></footer>
     </main>
     {mobileMenu && <Modal title="你的空间" onClose={() => setMobileMenu(false)} className="home-mobile-menu"><div className="home-mobile-nav">{navigation}</div></Modal>}
-    {activeFolder && <FolderDialog key={activeFolder.id ?? 'ungrouped'} folder={activeFolder} onClose={() => setFolderId(undefined)} onAdd={() => { setFolderId(undefined); onAdd(activeFolder.id); }} onLibrary={() => onLibrary(activeFolder.id ?? 'ungrouped')} />}
-    {draft && <HomepageSettings appearanceTargets={[{ id: 'search', label: '搜索框' }, { id: 'clock', label: '时钟' }, { id: 'calendar', label: '日历' }, { id: 'favorites', label: '常用收藏' }, ...folders.map(folder => ({ id: folder.id === null ? 'ungrouped' : `folder:${folder.id}`, label: `文件夹 · ${folder.name}` }))]} draft={draft} onChange={setDraft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); localWallpaper.reload(); setNotice('主页设置已保存'); }} onAccount={onAccount} navigationGuard={navigationGuard} />}
+    {activeFolder && <FolderDialog key={activeFolder.id ?? 'ungrouped'} folder={activeFolder} onClose={() => setFolderId(undefined)} onAdd={() => { setFolderId(undefined); onAdd(activeFolder.id); }} onLibrary={() => onLibrary(activeFolder.id ?? 'ungrouped')} onBookmarkAction={(bookmark, action) => { if (action !== 'pin') setFolderId(undefined); return onBookmarkAction(bookmark, action); }} bookmarkActionPending={bookmarkActionPending} />}
+    {draft && <HomepageSettings appearanceTargets={[{ id: 'search', label: '搜索框' }, { id: 'clock', label: '时钟' }, { id: 'calendar', label: '日历' }, { id: 'weather', label: '天气' }, { id: 'favorites', label: '常用收藏' }, ...folders.map(folder => ({ id: folder.id === null ? 'ungrouped' : `folder:${folder.id}`, label: `文件夹 · ${folder.name}` }))]} draft={draft} onChange={setDraft} onClose={() => setDraft(null)} onSaved={() => { setDraft(null); localWallpaper.reload(); setNotice('主页设置已保存'); }} onAccount={onAccount} navigationGuard={navigationGuard} />}
     {notice && <div className="toast home-toast" role="status"><Check size={17} />{notice}<button aria-label="关闭提示" onClick={() => setNotice('')}><X size={14} /></button></div>}
   </div>;
 }

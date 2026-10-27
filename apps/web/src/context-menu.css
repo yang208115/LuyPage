@@ -1,0 +1,9 @@
+.context-menu { position: fixed; z-index: 1000; width: 224px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 6px; border: 1px solid #ffffff29; border-radius: 14px; background: rgb(22 33 27 / 95%); backdrop-filter: blur(20px); color: #fffdf7; box-shadow: 0 14px 48px #0005; text-shadow: none; }
+.context-menu-title { padding: 7px 10px 9px; color: #ffffff91; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.context-menu [role=menuitem] { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-decoration: none; font-size: 12px; line-height: 1.5; cursor: pointer; }
+.context-menu [role=menuitem]:is(:hover, :focus-visible) { background: #ffffff14; color: #fff; outline: none; }
+.context-menu [role=menuitem]:disabled { opacity: .4; cursor: not-allowed; }
+.context-menu .context-menu-danger { color: #ffafa3; }
+.context-menu .context-menu-danger:is(:hover, :focus-visible) { background: #e57d6c20; color: #ffc1b8; }
+.context-menu-separator { height: 1px; margin: 5px 7px; background: #ffffff1a; }
+.context-menu-toast { z-index: 1100; }

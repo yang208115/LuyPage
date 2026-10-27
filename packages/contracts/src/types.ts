@@ -1,26 +1,33 @@
 import { DEFAULT_TILE_APPEARANCE, type TileAppearance } from './tile-appearance';
 import type { HomepageLayout, HomepageDevice } from './homepage-layout';
+import type { WeatherLocation } from './weather';
 export type Id = string;
 export interface Session { user: { id: Id; displayName: string }; local: boolean; loginUrl: string; logoutUrl: string }
 export interface IconChoice { type: 'auto' | 'builtin'; key: string | null }
 export const WALLPAPER_IDS = ['sunset-fields', 'blue-lake', 'night-forest'] as const;
 export const SEARCH_PROVIDERS = ['bing', 'baidu', 'google', 'bookmarks'] as const;
+export const DEFAULT_SHORTCUT_ICON_SIZE = 62;
+export const MIN_SHORTCUT_ICON_SIZE = 40;
+export const MAX_SHORTCUT_ICON_SIZE = 128;
 export interface HomepagePreferences {
   wallpaperId: typeof WALLPAPER_IDS[number];
   searchProvider: typeof SEARCH_PROVIDERS[number];
   showClock: boolean;
   showCalendar: boolean;
+  showWeather: boolean;
+  weatherLocation: WeatherLocation | null;
+  shortcutIconSize: number;
   tileAppearance: TileAppearance;
 }
 export const DEFAULT_HOMEPAGE_PREFERENCES: HomepagePreferences = {
-  wallpaperId: 'sunset-fields', searchProvider: 'bing', showClock: true, showCalendar: true, tileAppearance: DEFAULT_TILE_APPEARANCE,
+  wallpaperId: 'sunset-fields', searchProvider: 'bing', showClock: true, showCalendar: true, showWeather: true, weatherLocation: null, shortcutIconSize: DEFAULT_SHORTCUT_ICON_SIZE, tileAppearance: DEFAULT_TILE_APPEARANCE,
 };
 export interface HomepageShortcut { id: Id; title: string; url: string; icon: IconChoice }
 export interface HomepageFolder { id: Id | null; name: string; count: number; preview: HomepageShortcut[] }
 export interface Homepage {
   revision: number; layout: HomepageLayout; pinnedIds: Id[]; preferences: HomepagePreferences; counts: { active: number; pinned: number }; folders: HomepageFolder[];
 }
-export interface HomepageSaveInput { operationId: Id; baseRevision: number; preferences: Omit<HomepagePreferences, 'tileAppearance'> & { tileAppearance?: TileAppearance } }
+export interface HomepageSaveInput { operationId: Id; baseRevision: number; preferences: Omit<HomepagePreferences, 'tileAppearance' | 'showWeather' | 'weatherLocation' | 'shortcutIconSize'> & Partial<Pick<HomepagePreferences, 'tileAppearance' | 'showWeather' | 'weatherLocation' | 'shortcutIconSize'>> }
 export interface Bookmark {
   id: Id; url: string; title: string; note: string; groupId: Id | null; tagIds: Id[]; pinned: boolean;
   icon: IconChoice; createdAt: string; updatedAt: string; deletedAt: string | null; version: number;

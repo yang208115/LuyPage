@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark as BookmarkGlyph, Check, CheckSquare, ChevronDown, CircleHelp, Folder, LayoutGrid, LoaderCircle, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, Tag as TagGlyph, Trash2, X } from 'lucide-react';
-import { MAX_LAYOUT_OPERATIONS, type Bookmark, type LayoutIndex, type LayoutOperation, type LayoutPreferences, type MutationResult } from '@luypage/contracts';
+import { MAX_LAYOUT_OPERATIONS, type Bookmark, type HomepageShortcut, type LayoutIndex, type LayoutOperation, type LayoutPreferences, type MutationResult } from '@luypage/contracts';
 import { ApiError, useCommand } from './api';
 import { useBookmarks, useWorkspace } from './data';
 import { useSession, SessionNotice } from './session';
@@ -12,6 +12,7 @@ import { BatchEditor } from './BatchEditor';
 import { CollectionManager } from './CollectionManager';
 import { Settings } from './Settings';
 import { HomePage } from './HomePage';
+import type { BookmarkMenuAction } from './bookmark-context-menu';
 import { ConfirmDialog, EmptyState, ErrorNotice, LoadingCards, Modal, useBeforeUnload, type Confirmation } from './ui';
 
 export function App() {
@@ -21,6 +22,8 @@ export function App() {
   const [draft, setDraft] = useState<LayoutDraft | null>(null);
   const [layoutLoading, setLayoutLoading] = useState(false);
   const [pageError, setPageError] = useState<Error | null>(null);
+  const [homepageActionPending, setHomepageActionPending] = useState(false);
+  const homepageActionBusy = useRef(false);
   const [notification, setNotification] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [editor, setEditor] = useState<{ bookmark?: Bookmark; groupId?: string | null } | null>(null);
@@ -147,6 +150,19 @@ export function App() {
       notify(bookmark.pinned ? '已取消常用' : '已加入常用收藏'); void refresh();
     } catch { /* A retry of this card uses the same operation ID. */ }
   }
+  async function homepageBookmarkAction(shortcut: HomepageShortcut, action: BookmarkMenuAction) {
+    if (homepageActionBusy.current || command.pending || !leaveLayout()) return;
+    homepageActionBusy.current = true; setHomepageActionPending(true); setPageError(null); command.clearError();
+    try {
+      // Folder previews are lightweight; read current metadata and version before any edit.
+      const bookmark = await send<Bookmark>(`/api/bookmarks/${encodeURIComponent(shortcut.id)}`);
+      if (bookmark.deletedAt) throw new Error('这条收藏已移入回收站，请刷新主页。');
+      if (action === 'edit') setEditor({ bookmark });
+      else if (action === 'pin') await pin(bookmark);
+      else confirmBookmark(bookmark, 'trash');
+    } catch (cause) { setPageError(cause instanceof Error ? cause : new Error('无法读取收藏，请重试。')); }
+    finally { homepageActionBusy.current = false; setHomepageActionPending(false); }
+  }
   const actions: CardActions = {
     editing: !!draft, locked: layoutCommand.pending || layoutLoading || !!draft?.reset, selecting: selectionMode, selected, trash,
     onSelect: bookmark => setSelected(current => { const next = new Set(current); if (next.has(bookmark.id)) next.delete(bookmark.id); else next.add(bookmark.id); return next; }),
@@ -164,9 +180,9 @@ export function App() {
     {settings && <Settings onClose={() => setSettings(false)} onManage={openManager} onLayout={() => void startLayout()} />}
     {batchItems && <BatchEditor selected={batchItems} latest={allLoaded} groups={groups} tags={tags} trash={trash} onRefresh={() => void refresh()} onSelection={ids => setSelected(new Set(ids))} onClose={() => setBatchItems(null)} />}
     {confirmation && <ConfirmDialog confirmation={confirmation} pending={command.pending} error={command.error} onClose={() => { setConfirmation(null); command.clearError(); }} />}
-    {editor && !data && <Modal title="添加收藏" onClose={() => setEditor(null)}><ErrorNotice error={bootstrap.error} retry={() => void bootstrap.refetch()} />{bootstrap.isPending && <p role="status">正在读取分组和标签…</p>}</Modal>}
+    {editor && !data && <Modal title={editor.bookmark ? '编辑收藏' : '添加收藏'} onClose={() => setEditor(null)}><ErrorNotice error={bootstrap.error} retry={() => void bootstrap.refetch()} />{bootstrap.isPending && <p role="status">正在读取分组和标签…</p>}</Modal>}
   </>;
-  if (isHomepage) return <><HomePage onLibrary={(groupId, q) => navigateTo({ ...emptyNavigation, groupId: groupId ?? '', q: q ?? '' })} onAdd={add} onAccount={() => setSettings(true)} navigationGuard={homepageGuard} />{overlays}</>;
+  if (isHomepage) return <><HomePage onLibrary={(groupId, q) => navigateTo({ ...emptyNavigation, groupId: groupId ?? '', q: q ?? '' })} onAdd={add} onAccount={() => setSettings(true)} onBookmarkAction={homepageBookmarkAction} bookmarkActionPending={homepageActionPending || command.pending || expired} actionError={pageError ?? (!confirmation ? command.error : null)} navigationGuard={homepageGuard} />{overlays}</>;
 
   const sidebar = <>
     <button className="brand" onClick={() => navigateTo({ ...emptyNavigation })}><span className="brand-mark"><BookmarkGlyph size={22} /></span><span>LuyPage<small>私藏美好，随手抵达</small></span></button>

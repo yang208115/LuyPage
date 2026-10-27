@@ -6,6 +6,8 @@ import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpRight, ArrowUpToLine, Check
 import type { Bookmark, Group, LayoutIndex, LayoutOperation } from '@luypage/contracts';
 import { BookmarkIcon, domainOf, safeWebsite } from './ui';
 import { relativePlacement, type MoveDirection } from './layout';
+import { isContextMenuKey, useContextMenu, type ContextMenuItem } from './ContextMenu';
+import { bookmarkMenuItems } from './bookmark-context-menu';
 
 export interface CardActions {
   editing?: boolean; locked?: boolean; selecting?: boolean; selected: Set<string>; trash?: boolean;
@@ -16,10 +18,17 @@ export interface CardActions {
 export function BookmarkCard({ bookmark, actions, handle, controls }: {
   bookmark: Bookmark; actions: CardActions; handle?: ReactNode; controls?: ReactNode;
 }) {
+  const menu = useContextMenu();
+  const menuItems: ContextMenuItem[] = actions.trash ? [
+    { label: '恢复收藏', icon: RotateCcw, run: () => actions.onRestore(bookmark) },
+    { label: '永久删除', icon: Trash2, danger: true, divider: true, run: () => actions.onDelete(bookmark) },
+  ] : bookmarkMenuItems(bookmark, action => action === 'edit' ? actions.onEdit(bookmark) : action === 'pin' ? actions.onPin(bookmark) : actions.onTrash(bookmark), menu.notify, actions.locked);
   const selected = actions.selected.has(bookmark.id);
   const content = <><BookmarkIcon bookmark={bookmark} /><strong title={bookmark.title}>{bookmark.title}</strong><span className="card-domain" title={domainOf(bookmark.url)}>{domainOf(bookmark.url)}</span>{!actions.editing && !actions.selecting && !actions.trash && <ArrowUpRight className="external-arrow" size={14} aria-hidden="true" />}</>;
   const href = safeWebsite(bookmark.url);
-  return <article className={`bookmark-card ${selected ? 'is-selected' : ''} ${actions.editing ? 'is-editing' : ''}`}>
+  return <article className={`bookmark-card ${selected ? 'is-selected' : ''} ${actions.editing ? 'is-editing' : ''}`}
+    onContextMenu={event => { if (!actions.editing && !actions.selecting) menu.open(event, bookmark.title, menuItems); }}
+    onKeyDown={event => { if (!actions.editing && !actions.selecting && isContextMenuKey(event)) menu.open(event, bookmark.title, menuItems); }}>
     {actions.selecting ? <button className="card-main select-card" aria-pressed={selected} aria-label={`选择${bookmark.title}`} onClick={() => actions.onSelect(bookmark)}><span className="card-check">{selected && <Check size={13} />}</span>{content}</button>
       : actions.editing || actions.trash || !href ? <div className="card-main">{content}</div>
       : <a className="card-main" href={href} target="_blank" rel="noreferrer" title={`${bookmark.title}\n${bookmark.url}`}>{content}</a>}

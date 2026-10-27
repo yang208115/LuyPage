@@ -89,12 +89,11 @@
 .home-favorites > header button:hover { color: #fff; }
 .home-shortcuts { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 28px 24px; }
 .home-shortcut { display: flex; flex-direction: column; gap: 10px; align-items: center; min-width: 0; color: #fff; text-decoration: none; font-size: 12px; line-height: 1.4; }
-.home-site-icon { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; flex-shrink: 0; border-radius: 18px; box-shadow: 0 4px 15px #11251625; transition: transform .18s; color: #fff; }
-.home-shortcut:hover .home-site-icon { transform: translateY(-4px); }
-.home-tone-0 { background: #e98358; }.home-tone-1 { background: #4e8cc4; }.home-tone-2 { background: #66a086; }.home-tone-3 { background: #a37bbc; }.home-tone-4 { background: #d7a647; }.home-tone-5 { background: #df7082; }.home-tone-6 { background: #528fa0; }
+.home-site-icon { display: inline-flex; align-items: center; justify-content: center; width: 62px; height: 62px; flex-shrink: 0; border: 1px solid #ffffff24; border-radius: 18px; background: rgb(22 33 27 / 55%); backdrop-filter: blur(12px); box-shadow: 0 4px 15px #11251625; transition: transform .18s, background .18s, border-color .18s; color: #fffdf7; }
+.home-site-initial { font-size: 25px; font-weight: 600; line-height: 1; }
+.home-shortcut:hover .home-site-icon { transform: translateY(-4px); background: rgb(30 43 34 / 72%); border-color: #ffffff40; }
 .home-shortcut-name { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 4px #1424149e; }
 .home-add-shortcut { min-height: 0; border: 0; border-radius: 0; background: transparent; padding: 0; justify-content: flex-start; }
-.home-add-shortcut .home-site-icon { background: #ffffff30; border: 1px solid #ffffff5e; }
 .home-add-shortcut:hover { background: transparent; }
 .home-pinned-status { font-size: 12px; color: #fffddd; margin: 2px 0 25px; }
 .home-load-more { display: flex; margin: 24px auto 0; font-size: 12px; border-color: #ffffff24; color: #fff; background: #1f30295c; }
@@ -158,24 +157,36 @@
 
 /* Account-owned homepage canvas; only handles capture pointer movement. */
 .homepage-grid { display: grid; grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr)); grid-auto-rows: 56px; gap: 16px; position: relative; }
-.homepage-grid.is-grid-editing { background-image: linear-gradient(to right, #ffffff16 1px, transparent 1px), linear-gradient(to bottom, #ffffff16 1px, transparent 1px); background-size: var(--grid-step-x) 72px; border-radius: 12px; }
+.homepage-grid.is-grid-editing { border-radius: 12px; }
 .homepage-grid-item { min-width: 0; min-height: 0; position: relative; border-radius: 20px; }
 .homepage-grid-item.is-dragging { z-index: 3; outline: 2px solid #f2cc82; }
 .homepage-grid-content { width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .homepage-grid-content > .home-tile, .homepage-grid-content > .home-search { width: 100%; height: 100%; min-height: 0; margin: 0; }
-.homepage-grid-content > .home-favorites { height: 100%; margin: 0; padding: 8px; overflow: auto; scrollbar-width: thin; }
+.homepage-grid-content > .home-favorites { height: 100%; margin: 0; padding: 8px; overflow: auto; scrollbar-width: none; }
+.homepage-grid-content > .home-favorites::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .homepage-grid-content .home-shortcuts { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 24px 12px; }
 .homepage-grid-content .home-calendar { display: flex; flex-direction: column; justify-content: center; }
 .homepage-grid-content .home-calendar .calendar-grid { gap: 3px 0; }
 .homepage-grid.is-grid-editing .homepage-grid-item { outline: 1px dashed #fffd; }
 .homepage-grid.is-grid-editing .homepage-grid-content { opacity: .85; }
 .homepage-grid.is-grid-editing .tile-favorites .homepage-grid-content { padding-top: 28px; }
-.grid-drag-handle, .grid-resize-handle, .pin-drag-handle { touch-action: none; color: #fff; background: #142d34; border: 1px solid #ffffff80; padding: 5px 8px; min-height: 30px; }
+.grid-drag-handle, .grid-resize-handle { touch-action: none; color: #fff; background: #142d34; border: 1px solid #ffffff80; padding: 5px 8px; min-height: 30px; }
 .grid-drag-handle { position: absolute; top: 0; left: 0; display: flex; gap: 4px; max-width: calc(100% - 28px); cursor: grab; z-index: 4; }
 .grid-drag-handle span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
 .grid-resize-handle { position: absolute; right: 0; bottom: 0; width: 32px; padding: 5px; cursor: nwse-resize; z-index: 4; }
-.sortable-home-pin { min-width: 0; position: relative; }
-.pin-drag-handle { display: block; margin: 5px auto 0; cursor: grab; }
+.sortable-home-pin { min-width: 0; position: relative; height: calc(var(--pin-row) - 12px); }
+.homepage-grid-content .home-shortcuts.home-pin-grid { grid-template-columns: repeat(var(--pin-columns), minmax(0, 1fr)); grid-auto-rows: var(--pin-row); gap: 0 12px; align-items: start; position: relative; }
+.home-pin-grid.is-pin-editing { background-image: linear-gradient(to right, #ffffff12 1px, transparent 1px), linear-gradient(to bottom, #ffffff12 1px, transparent 1px); background-size: var(--pin-step-x) var(--pin-row); border-radius: 10px; }
+.sortable-home-pin.is-dragging { z-index: 3; opacity: .8; }
+.home-pin-add > .home-shortcut { width: 100%; }
+.home-pin-drop-preview { min-width: 0; height: calc(var(--pin-row) - 12px); border: 1px dashed #f2cc82; border-radius: 14px; background: #f2cc8214; pointer-events: none; display: flex; align-items: end; justify-content: center; padding: 7px 2px; color: #fff4d7; font-size: 10px; }
+.homepage-pin-hint { color: #ffffffa8; font-size: 11px; }
+.pin-drag-handle { position: absolute; inset: 0; width: 100%; height: 100%; display: block; margin: 0; padding: 0; min-height: 0; touch-action: none; cursor: grab; background: transparent; border: 0; border-radius: 10px; color: #fff; }
+.pin-drag-handle:hover, .pin-drag-handle:focus-visible { background: #ffffff0b; outline: 1px dashed #ffffff80; outline-offset: -1px; }
+.pin-drag-handle:active { cursor: grabbing; }
+.pin-drag-grip { position: absolute; top: 3px; left: calc(50% + var(--home-icon-size, 62px) / 2 - 21px); width: 18px; height: 18px; padding: 2px; border-radius: 5px; background: #142d34c9; pointer-events: none; }
+.pin-resize-handle { position: absolute; z-index: 2; top: calc(var(--home-icon-size) - 22px); left: calc(50% + var(--home-icon-size) / 2 - 22px); width: 22px; height: 22px; min-height: 0; margin: 0; padding: 3px; display: grid; place-items: center; border: 1px solid #ffffff70; border-radius: 6px; background: #142d34ed; color: #fff; cursor: nwse-resize; touch-action: none; }
+.pin-resize-handle:hover, .pin-resize-handle:focus-visible { background: #35535b; outline: 2px solid #f2cc82; outline-offset: 1px; }
 .homepage-layout-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; position: sticky; top: 10px; z-index: 10; padding: 12px; margin: 0 0 24px; border: 1px solid #fff5; border-radius: 14px; background: #142d34f2; color: white; }
 .homepage-layout-toolbar button { color: white; background: #ffffff15; border: 1px solid #fff5; font-size: 12px; }
 .homepage-layout-toolbar p, .homepage-layout-toolbar .error-notice { flex-basis: 100%; }
@@ -188,7 +199,7 @@
   .homepage-grid-content .home-shortcuts { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); }
 }
 
-.homepage-layout-toolbar button:hover, .grid-drag-handle:hover, .grid-resize-handle:hover, .pin-drag-handle:hover { color: #fff; background: #35535b; border-color: #fff9; }
+.homepage-layout-toolbar button:hover, .grid-drag-handle:hover, .grid-resize-handle:hover { color: #fff; background: #35535b; border-color: #fff9; }
 
 /* Surface opacity is independent of content; icons keep their original colors. */
 .homepage-grid-item.tile-customized { border-radius: var(--tile-radius); }
@@ -225,3 +236,47 @@
 .appearance-preview small, .appearance-preview span { font-size: 11px; color: var(--tile-muted); }
 @media (max-width: 760px) { .appearance-controls { grid-template-columns: 1fr; gap: 16px; }.appearance-preview { min-height: 125px; } }
 .tile-customized .home-add-shortcut .home-site-icon { color: var(--tile-text); border-color: var(--tile-border); background: transparent; }
+
+.home-pin-grid .home-site-icon, .home-dialog-shortcuts .home-site-icon, .home-icon-size-preview .home-site-icon { width: var(--home-icon-size, 62px); height: var(--home-icon-size, 62px); aspect-ratio: 1; flex-shrink: 0; border-radius: min(22px, calc(var(--home-icon-size, 62px) * .28)); }
+.home-pin-grid .home-site-icon > svg, .home-dialog-shortcuts .home-site-icon > svg, .home-icon-size-preview .home-site-icon > svg { width: 48%; height: 48%; }
+.home-pin-grid .home-site-initial, .home-dialog-shortcuts .home-site-initial { font-size: calc(var(--home-icon-size, 62px) * .4); }
+.home-dialog-shortcuts { grid-template-columns: repeat(auto-fill, minmax(max(64px, var(--home-icon-size, 62px)), 1fr)); gap: 24px 12px; }
+.home-icon-size-preview { display: flex; align-items: center; gap: 16px; min-height: 140px; margin: 12px 0; font-size: 12px; color: #59695e; }
+
+.home-weather { padding: 17px 20px; display: flex; flex-direction: column; gap: 6px; }
+.home-weather header, .weather-current, .weather-summary, .weather-selected { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.home-weather .weather-location { background: none; border: 0; padding: 0; min-height: 26px; min-width: 0; color: inherit; display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.home-weather header > .home-icon-button { width: 26px; min-height: 26px; padding: 4px; }
+.weather-location span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weather-location svg { flex-shrink: 0; }
+.weather-current strong { font-size: clamp(30px, 3vw, 44px); line-height: 1.15; font-weight: 500; letter-spacing: -2px; }
+.weather-current strong small { font-size: 18px; letter-spacing: 0; margin-left: 3px; }
+.weather-current > svg { color: #f3d18c; flex-shrink: 0; }
+.weather-summary { font-size: 12px; }
+.weather-details, .weather-updated, .weather-credit { font-size: 10px; line-height: 1.4; color: #ffffffb0; margin: 0; }
+.weather-credit { align-self: flex-start; margin-top: auto; }
+.weather-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex: 1; justify-content: center; }
+.weather-empty p { font-size: 13px; margin: 0; }
+.weather-empty button, .weather-status button { font-size: 11px; padding: 4px 8px; min-height: 28px; color: inherit; background: #ffffff10; border-color: #ffffff40; }
+.weather-status { font-size: 11px; line-height: 1.6; margin: 4px 0; }
+.weather-error { color: #ffe1b6; }
+.weather-status button { margin-left: 5px; }
+.tile-customized .weather-details, .tile-customized .weather-updated, .tile-customized .weather-credit { color: var(--tile-muted); }
+.tile-customized .weather-current > svg { color: var(--tile-text); }
+.weather-settings { margin-top: 12px; }
+.weather-selected { flex-wrap: wrap; font-size: 12px; }
+.weather-location-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.weather-selected button, .weather-search > button { font-size: 12px; }
+.weather-search { display: flex; gap: 10px; align-items: flex-end; }
+.weather-search .field { flex: 1; min-width: 0; margin: 8px 0 0; }
+.weather-search > button { flex-shrink: 0; }
+.weather-city-results { display: grid; gap: 6px; margin: 10px 0; }
+.weather-city-results > button { display: flex; justify-content: space-between; text-align: left; font-size: 12px; }
+.weather-city-results > button[aria-pressed=true] { border-color: #347963; background: #edf4e9; }
+@media (max-width: 760px) {
+  .home-weather { padding: 12px; gap: 5px; }
+  .weather-current strong { font-size: 34px; }
+  .weather-current > svg { width: 30px; }
+  .weather-summary { font-size: 11px; }
+  .weather-details { font-size: 9px; }
+}

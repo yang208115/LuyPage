@@ -43,11 +43,14 @@ export async function getHomepage(db: D1Database, ownerId: string): Promise<Home
 
 export async function saveHomepagePreferences(db: D1Database, ownerId: string, input: HomepageSaveInput): Promise<MutationResult<HomepagePreferences>> {
   return mutate(db, ownerId, input.operationId, ['homepage.preferences', input], async state => {
-    // Older clients omit appearance; preserve the saved customization on their writes.
+    // Older clients omit newer widgets; preserve those saved preferences on their writes.
     const row = await statement(db, 'SELECT homepage_preferences FROM workspace_state WHERE owner_id = ?', ownerId).first<{ homepage_preferences: string }>();
     if (!row) throw missing();
     const previous = homepagePreferencesSchema.parse(JSON.parse(row.homepage_preferences));
-    const preferences = homepagePreferencesSchema.parse({ ...input.preferences, tileAppearance: input.preferences.tileAppearance ?? previous.tileAppearance });
+    const preferences = homepagePreferencesSchema.parse({ ...input.preferences, tileAppearance: input.preferences.tileAppearance ?? previous.tileAppearance,
+      showWeather: input.preferences.showWeather ?? previous.showWeather,
+      shortcutIconSize: input.preferences.shortcutIconSize ?? previous.shortcutIconSize,
+      weatherLocation: input.preferences.weatherLocation === undefined ? previous.weatherLocation : input.preferences.weatherLocation });
     return {
       statements: [statement(db, 'UPDATE workspace_state SET homepage_preferences = ? WHERE owner_id = ?', JSON.stringify(preferences), ownerId)],
       result: { data: preferences, revision: state.data_revision + 1 },
